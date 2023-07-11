@@ -1,0 +1,93 @@
+---
+title: "First Markdown"
+author: "Chris Madsen"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: material
+    highlight: github
+    df_print: kable
+---
+
+# My First Markdown Title
+
+## What is markdown? What are code blocks?
+
+Markdown documents allow us to write a mixture of text (headers and body text) and R code, then 'knit' the document together into some kind of easily shared file (e.g. HTML, PDF, etc.). I like to use markdown documents whenever I am collaborating with colleagues, as it's much easier to share an HTML file instead of R script files. Very few people like to receive R script files!
+
+Below is a code block, in which we will write R (or Python!) code. We can choose whether or not to display this code block in the final product with the 'echo' option.
+
+```{r setup_block, include = F}
+
+# Note: the 'include = F' above means we don't want to see ANY result of this code block.
+# It still runs, but we don't care to see any warnings, results, etc.
+# This is a nice way to keep the resulting document a readable length, and tidy.
+library(tidyverse)
+library(rayshader)
+```
+
+
+```{r, include = T, echo = T}
+# Setting up some fake variables.
+var_1 = c(1,2,3)
+var_2 = c(5,5,10)
+
+# Doing some wacky math.
+my_results = var_1 * var_2
+
+# When we call an object, or a model, or a plot, its output will be added to our markdown document.
+my_results
+```
+
+## What can I include in a Markdown doc?
+
+### Tables
+
+```{r, warning=F}
+my_table = iris |> 
+  as_tibble() |> 
+  sample_n(10)
+
+knitr::kable(my_table)
+```
+
+### Images
+
+```{r}
+# If the image is on our local machine, we can include it this way:
+```
+
+![Caption for our image. Hooonk!](data/Mirounga_angustirostris_calling_1_edit.jpg)
+
+```{r}
+# If the image is on the internet, we can include it with knitr::include_graphics.
+knitr::include_graphics('https://upload.wikimedia.org/wikipedia/commons/5/59/Seal-tortie.jpg')
+```
+
+
+### Tabsets {.tabset}
+
+#### Tab A
+
+```{r tab_a_content, echo = F}
+mtcars |> 
+  mutate(cyl = as.factor(cyl)) |> 
+  ggplot() + 
+  geom_boxplot(aes(x = cyl, y = mpg, group = cyl)) + 
+  theme_minimal()
+```
+
+#### Tab B
+
+```{r tab_b_content, echo = F}
+volcano %>%
+  sphere_shade(texture = "desert") %>%
+  # add_water(detect_water(volcano), color = "desert") %>%
+  add_shadow(ray_shade(volcano, zscale = 10), 0.5) %>%
+  add_shadow(ambient_shade(volcano), 0) %>%
+  rayshader::plot_3d(volcano, zscale = 3, fov = 0, theta = 135, zoom = 0.75, phi = 45, windowsize = c(1000, 800))
+rgl::rglwidget()
+```
+
+
+
