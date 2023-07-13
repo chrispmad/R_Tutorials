@@ -26,7 +26,7 @@ iris
 
 # We can convert this data.frame to a 'tibble', {tidyverse}'s answer
 # to this inconvenience.
-iris = as.tibble(iris)
+iris = as_tibble(iris)
 
 iris
 

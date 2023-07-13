@@ -40,7 +40,7 @@ fav_s
 
 View(fav_s)
 
-# Let's kick of a bar plot. We create a blank ggplot2 canvas with 'ggplot()'
+# Let's kick off a bar plot. We create a blank ggplot2 canvas with 'ggplot()'
 # Then, we add things to this plot using the functions named in this way:
 # "geom_X" (e.g. geom_point(), geom_bar(), geom_ribbon(), etc.)
 
@@ -107,3 +107,23 @@ basic_plot +
 # And let's write this ggplot figure to our computer.
 ggsave('output/basic_ggplot.jpg', basic_plot, height = 6, width = 8, dpi = 150)
 
+# One powerful thing to be able to do is to split plots
+# by some variable. For example, there are 3 species of iris flower
+# in the 'iris' dataset.
+
+# All 3 species on the same panel.
+ggplot(iris) +
+  geom_point(aes(x = Petal.Width, y = Petal.Length, col = Species))
+
+# Facetting based on the Species column.
+ggplot(iris) +
+  geom_point(aes(x = Petal.Width, y = Petal.Length, col = Species)) +
+  facet_wrap( ~ Species)
+
+# We can specify some things about the plot facets:
+# 1. The layout, i.e. how many columns and rows.
+# 2. If the x and/or y axes should be 'free'
+ggplot(iris) +
+  geom_point(aes(x = Petal.Width, y = Petal.Length, col = Species)) +
+  facet_wrap( ~ Species, nrow = 1, ncol = 3, scales = 'free')
+# Note: setting scales to be 'free' can be a bit misleading to readers.
