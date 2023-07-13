@@ -45,7 +45,50 @@ aov_results_l = map(my_data_list, ~ {
 # though they tend to be a little complicated and harder to conceptualize.
 # Lists can save you a lot of typing!
 
-# We can convert the summary results into a more 'R-friendly' format, i.e. a table.
+# # # # # # # # # # # # # # # # # # # # # # #
+# Brief aside - lists are worth it, I swear!
+# # # # # # # # # # # # # # # # # # # # # # #
+
+# Another example of using lists and map()
+# could be downloading species occurrence data from the
+# BC Data Warehouse for several species, applying some date filter, then combining
+# the results into a single table.
+
+species_of_interest = c("American Bullfrog","Common Wall Lizard","European Starling")
+
+bcg_dat = map(species_of_interest, ~ {
+
+  raw_data = bcdata::bcdc_query_geodata('wildlife-species-inventory-incidental-observations-non-secured') |>
+    filter(SPECIES_ENGLISH_NAME == .x) |>
+    collect()
+
+  filtered_data = raw_data |>
+    filter(OBSERVATION_YEAR >= 2000) |>
+    dplyr::select(species = SPECIES_ENGLISH_NAME,
+                  year = OBSERVATION_YEAR,
+                  lat = LATITUDE,
+                  lon = LONGITUDE)
+
+  filtered_data
+  }) |>
+  bind_rows()
+
+# Let's check that it worked!
+bc_outline = bcmaps::bc_bound()
+
+bcg_dat |>
+  ggplot() +
+  geom_sf(data = bc_outline) +
+  geom_sf(aes(col = year, shape = species))
+
+# No data from before 2000, and we have 3 species. Rad!
+
+# # # # # # # # # # # # # # # # # # # # # # #
+# Brief aside finished
+# # # # # # # # # # # # # # # # # # # # # # #
+
+
+# We can convert the ANOVA summary results into a more 'R-friendly' format, i.e. a table.
 # To do this, let's use the {broom} package. Here's another way to use a function
 # on each element of a list: lapply()
 
