@@ -3,15 +3,18 @@
 # libraries of code that other people have written and we use the imported
 # functions to greatly speed up our own work.
 
+# We can use the analogy of a toolbox, containing tools that help us
+# perform specific tasks. The toolbox is the package, the tools are the functions.
+
 # One of the most commonly used packages is actually a package of ... packages.
 # The {tidyverse} consists of ~ 8 to 10 packages, each of which is very useful
 # for typical data cleaning / transformation etc.
 
 # In brief, the packages do the following:
 # 1. dplyr: lots of functions for working with tables of data.
-# 2. readr: good for reading in .CSV files.
+# 2. readr: good for reading in (small to medium) .CSV files.
 # 3. forcats: good for working with factors (i.e. ordered character
-#             labels, e.g. the four seasons, since spring -> summer -> fall etc.)
+#             labels, e.g. the four seasons, since spring -> summer -> fall -> winter etc.)
 # 4. stringr: super useful for working with text / character strings.
 # 5. ggplot2: probably the most commonly used plotting package in R
 # 6. tibble: gives an updated and superior kind of dataframe.
@@ -26,11 +29,27 @@
 install.packages('tidyverse')
 
 # Once that's finished, you can now import it to your R session:
+# This is analogous to takin the toolbox down from the shelf, placing it on your
+# workbench, and opening it up to get access to the tools inside.
 
 library(tidyverse)
 
+# Quick aside: if we want to see what the tools are that a certain package gives us,
+# we can write the name of the package, followed by ::
+
+# E.g.
+#readr::
+# As we type this, Rstudio gives us a dropdown box listing all the functions (and data)
+#included in the package.
+
+# If we type in a part of a function name, then mouse over the box that pops up,
+# we'll be able to get a glimpse of the documentation and the arguments we could
+# set for the function.
+
+readr::read_csv()
+
 # Let's read in our data from last session.
-fav_s = read_csv('output/fav_season_results.csv')
+fav_s = read_csv(file = 'output/fav_season_results.csv')
 
 # Want to see what it looks like, to jog your memory? We can either
 # just call the variable's name and check it out in the console,
@@ -127,3 +146,24 @@ ggplot(iris) +
   geom_point(aes(x = Petal.Width, y = Petal.Length, col = Species)) +
   facet_wrap( ~ Species, nrow = 1, ncol = 3, scales = 'free')
 # Note: setting scales to be 'free' can be a bit misleading to readers.
+
+# Another powerful thing to do is to extend ggplot with another package called
+# 'plotly'. We can make some rad, interactive figures with plotly; note that
+# the file we produce must be an HTML file for these plotly figures to work -
+# if we're producing a PDF or any other kind of non-interactive report, these
+# guys will be inert.
+
+# Check out this website to see all of the amazing plots that you can make with
+# plotly: https://plotly.com/r/
+
+install.packages("plotly")
+
+library(plotly)
+
+ggplotly(basic_plot)
+
+# volcano is a numeric matrix that ships with R
+fig <- plot_ly(z = ~volcano)
+fig <- fig |> add_surface()
+
+fig
