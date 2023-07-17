@@ -5,6 +5,12 @@
 # Author/Maintainer: Chris Madsen
 # Contact email(s): chris.madsen@gov.bc.ca; cpmadsenviking@gmail.com
 
+# Please note: this will be the least exciting, least intuitive of the
+# tutorials; however, it's all probably useful foundational knowledge.
+# The tutorials should be more exciting and feel more worthwhile after this one!
+
+
+
 # Commands in R are run in succession, i.e. one line at a time.
 # Press 'Control' + 'Enter' to run the line that the blinking vertical line is
 # currently on.
@@ -31,9 +37,13 @@ a * b
 
 b
 
+# Most of the time in R, we will be dealing with tables of information.
+# These tables can contain numbers, text, or even interesting things like
+# statistical models, images, plots, etc.
+
 # If a variable contains a table (also called a 'data-frame'), we can access
-# individual rows or columns (called 'subsetting')
-# using square brackets ( '[' and ']') and numbers.
+# individual rows or columns (called 'subsetting') using square brackets ( '[' and ']')
+# and numbers.
 # Note: if x and y are numbers, and we subset our table as follows: my_table[x,y]
 # The number 'x' will select the row(s) to include, and the number 'y' the columns.
 # E.g.
@@ -86,6 +96,42 @@ write.csv(fav_season, "output/fav_season_results.csv", row.names = FALSE)
 # Note: the 'row.names = FALSE' indicates that we do NOT want the write.csv
 # function to add a numeric index column (i.e. a column that goes
 # 1 -> the numer of rows we have).
+
+# Let's get a bit more complicated:
+# It's very convenient to be able to subset data while creating a new column.
+# e.g.
+fav_season$favourite = FALSE
+fav_season[fav_season$responses == max(fav_season$responses),]$favourite = TRUE
+fav_season
+
+# One more example.
+CO2
+
+# Calculate average uptake
+mean_up = median(CO2$uptake)
+
+CO2$result = 'Standard'
+CO2[CO2$Treatment == 'nonchilled' & CO2$uptake >= mean_up , ]$result = 'Exceeded'
+CO2[CO2$Treatment == 'chilled' & CO2$uptake >= (0.8*mean_up), ]$result = 'Exceeded'
+CO2
+
+# We can also use this kind of subsetting to correct data values, e.g. perhaps you
+# know that a dataset was read incorrectly and sampling locations were incorrectly
+# recorded as William Lake instead of William's Lake. It would be fairly simple
+# to fix this.
+
+my_data = data.frame(
+  location = c("William Lake","William Lake","William Lake","William's Lake"),
+  sample = c(1.0,2.1,1.8,7.1)
+)
+
+my_data[ my_data$location == 'William Lake', ]$location = "William's Lake"
+
+my_data
+
+# There are simpler ways of doing this, thanks to 'packages' of functions that
+# have been coded by other people but are available to us for free. We'll
+# take a look at those in the following tutorials.
 
 # Done! In the next tutorial, we'll read in our data, import a package to
 # help us plot the data, and make our first plot.
