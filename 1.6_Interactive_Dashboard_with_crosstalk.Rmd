@@ -1,0 +1,136 @@
+---
+title: "DashboardMania"
+author: "Your Name Here"
+date: "`r Sys.Date()`"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+---
+
+<style>
+.container-fluid .crosstalk-bscols {    /*push content away from far right and left edges*/
+  margin-right: 0px;
+  margin-left: 0px;
+}
+</style>
+
+```{r setup, include=FALSE}
+
+library(flexdashboard)
+library(crosstalk)
+library(tidyverse)
+library(plotly)
+library(sf)
+library(leaflet)
+
+# devtools::install_github("kent37/summarywidget")
+
+library(summarywidget)
+
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+co2 = CO2 |> 
+  as_tibble() |> 
+  mutate(row_id = row_number()) |> 
+  dplyr::select(row_id, everything())
+
+# Add some fake coordinates to our data so we can throw them on a map.
+co2 = co2 |> 
+  mutate(
+    lat = case_when(
+      Type == 'Quebec' ~ 50 + rnorm(n = nrow(co2), mean = 0, sd = 2),
+      T ~ 32 + rnorm(n = nrow(co2), mean = 0, sd = 0.5)
+    ),
+    lon = case_when(
+      Type == 'Quebec' ~ -70 + rnorm(n = nrow(co2), mean = 0, sd = 2),
+      T ~ -90 + rnorm(n = nrow(co2), mean = 0, sd = 0.5)
+    )) |> 
+  st_as_sf(coords = c("lon","lat"), crs = 4326)
+
+shared_co2 = crosstalk::SharedData$new(co2)
+```
+
+Column {data-width=300}
+--------------------------------------------------
+
+### Filters and Info
+```{r filters}
+bscols(
+  widths = c(1,8,1),
+  list(),
+  list(
+    crosstalk::filter_select(
+      "type","Type", shared_co2, ~Type,
+    ),
+    crosstalk::filter_select(
+      "treat","Treatment", shared_co2, ~Treatment
+    ),
+    crosstalk::filter_slider(
+      "conc","Concentration", shared_co2, ~conc
+    )
+  ),
+  list()
+)
+```
+
+#### Interactive Dashboards
+
+We can make interactive dashboards without resorting to Shiny, which is nice if we want to avoid the steep learning curve of {shiny}!
+
+To make our dashboard, we will use the package {crosstalk}, which allows us to connect figure(s) and data filtering options. To structure the dashboard layout, we can use {flexdashboard}.
+
+#### More Info
+
+- Crosstalk: https://rstudio.github.io/crosstalk/using.html
+- Plotly: https://plotly.com/r/
+- Flexdashboard: https://pkgs.rstudio.com/flexdashboard/ 
+
+#### Summary Stats of Uptake
+
+<center><h4><font color="#593869"><b>Count: `r summarywidget::summarywidget(data = shared_co2, statistic = 'count')`</b></font></h4></center>
+
+<center><h4><font color="#593869"><b>Sum: `r summarywidget::summarywidget(data = shared_co2, statistic = 'sum', column = 'uptake')`</b></font></h4></center>
+
+<center><h4><font color="#593869"><b>Mean: `r summarywidget::summarywidget(data = shared_co2, statistic = 'mean', column = 'uptake')`</b></font></h4></center>
+
+Column {data-width=600}
+--------------------------------------------
+
+### Linked Map 
+```{r linked_map, fig.height=2}
+mypal = leaflet::colorNumeric(
+  palette = 'Dark2',
+  domain = co2$uptake
+)
+
+leaflet() |> 
+  addTiles() |> 
+  addProviderTiles(providers$CartoDB.DarkMatter) |> 
+  setView(lng = -80, lat = 40, zoom = 3) |> 
+  addCircleMarkers(
+    color = ~mypal(uptake),
+    label = ~paste0(Type, ", Treatment: ", Treatment,", uptake: ", uptake),
+    data = shared_co2
+  )
+```
+
+### Linked Plots
+```{r linked_plots}
+bscols(
+  list(
+    plot_ly(shared_co2, x = ~conc, y = ~uptake, color = ~Type) |> 
+    layout(
+      margin = list(l = 50, r = 50, b = 0, t = 100),
+      #margin = list(autoexpand = FALSE),
+      width = 800,
+      height = 300
+           ),
+  plot_ly(shared_co2, x = ~conc, y = ~uptake, color = ~Type, group = ~Type, type = "box") |> 
+    layout(
+      margin = list(l = 50, r = 50, b = 100, t = 100),
+      width = 800,
+      height = 300
+    )
+  )
+)
+```
