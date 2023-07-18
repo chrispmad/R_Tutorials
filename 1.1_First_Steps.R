@@ -101,7 +101,9 @@ write.csv(fav_season, "output/fav_season_results.csv", row.names = FALSE)
 # It's very convenient to be able to subset data while creating a new column.
 # e.g.
 fav_season$favourite = FALSE
+
 fav_season[fav_season$responses == max(fav_season$responses),]$favourite = TRUE
+
 fav_season
 
 # One more example.
@@ -111,8 +113,11 @@ CO2
 mean_up = median(CO2$uptake)
 
 CO2$result = 'Standard'
+
 CO2[CO2$Treatment == 'nonchilled' & CO2$uptake >= mean_up , ]$result = 'Exceeded'
+
 CO2[CO2$Treatment == 'chilled' & CO2$uptake >= (0.8*mean_up), ]$result = 'Exceeded'
+
 CO2
 
 # We can also use this kind of subsetting to correct data values, e.g. perhaps you

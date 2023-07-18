@@ -1,3 +1,4 @@
+
 # As an open-source coding community, we R users nearly always 'stand on the
 # shoulders of giants' to carry out our tasks - in other words, we download
 # libraries of code that other people have written and we use the imported
@@ -29,7 +30,7 @@
 install.packages('tidyverse')
 
 # Once that's finished, you can now import it to your R session:
-# This is analogous to takin the toolbox down from the shelf, placing it on your
+# This is analogous to taking the toolbox down from the shelf, placing it on your
 # workbench, and opening it up to get access to the tools inside.
 
 library(tidyverse)
@@ -124,6 +125,7 @@ ggplot(CO2) +
 
 RColorBrewer::display.brewer.all()
 
+
 # There are monodirectional palettes at the top (white to saturated colour)
 # unordered colour palettes in the middle (I quite like Dark2)
 # and diverging palettes at the bottom.
@@ -133,6 +135,30 @@ RColorBrewer::display.brewer.all()
 # (i.e. categorical, like size classes for trees). If the former, use
 # scale_colour_continuous (or scale_fill_continuous if adjusting the fill colour),
 # if the latter, use scale_colour_discrete.
+
+# Note: for colour-blind-friendly palettes, try out the 'viridis' options
+# scale_colour_viridis_d() for discrete values (categorical),
+# scale_colour_viridis_c() for continuous values (numerical)
+ggplot(CO2) +
+  geom_point(aes(
+    x = conc,
+    y = uptake,
+    col = Type #The colour of the points now depends on the Type column.
+  )) +
+  scale_colour_viridis_d()
+
+# We can also draw from that RColorBrewer set of colour palettes
+# with the scale_colour_brewer() and/or scale_fill_brewer() functions
+ggplot(CO2) +
+  geom_point(aes(
+    x = conc,
+    y = uptake,
+    col = Type #The colour of the points now depends on the Type column.
+  ),
+  size = 3) +
+  scale_colour_brewer(palette = 'Dark2')
+
+# Can you change the palette above to Set2?
 
 # You can make a customized colour palette with a
 # gradient with scale_colour_gradientn() or scale_colour_gradient2(), or their
