@@ -1,0 +1,172 @@
+---
+title: "DashboardMania"
+author: "Your Name Here"
+date: "`r Sys.Date()`"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+---
+
+```{r}
+# Some nitty-gritty:
+
+#The HTML block just below informs how R Markdown will format this dashboard. Specifically, the code below (technically it is CSS, or cascading style sheets) tells Markdown that for any and all things in the HTML file that are tagged with the categories of "container-fluid" and "crosstalk-bscols" should have left and right margins of 0 px (i.e., NO left and right margins)
+```
+
+<style>
+.container-fluid .crosstalk-bscols {    /*push content away from far right and left edges*/
+  margin-right: 0px;
+  margin-left: 0px;
+}
+</style>
+
+```{r setup, include=FALSE}
+# This block of code loads in packages that we will use, sets knitting options (echo = FALSE, warning = F, etc.), brings in the CO2 dataset and modifies it a bit, and then creates a crosstalk object (specifically, a SharedData R6 object)
+library(flexdashboard)
+library(crosstalk)
+library(tidyverse)
+library(plotly)
+library(sf)
+library(leaflet)
+
+# If you haven't installed the summary widget code before,
+# please nab it from github by running the line below:
+# devtools::install_github("kent37/summarywidget")
+# Comment out the above line once you've installed kent's package!
+
+library(summarywidget)
+
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+# Take the CO2 dataset that comes with R, add unique row ID, and put that as the first column.
+co2 = CO2 |> 
+  as_tibble() |> 
+  mutate(row_id = row_number()) |> 
+  dplyr::select(row_id, everything())
+
+# Add some fake coordinates to our data so we can throw them on a map.
+co2 = co2 |> 
+  mutate(
+    lat = case_when(
+      Type == 'Quebec' ~ 50 + rnorm(n = nrow(co2), mean = 0, sd = 2),
+      T ~ 32 + rnorm(n = nrow(co2), mean = 0, sd = 0.5)
+    ),
+    lon = case_when(
+      Type == 'Quebec' ~ -70 + rnorm(n = nrow(co2), mean = 0, sd = 2),
+      T ~ -90 + rnorm(n = nrow(co2), mean = 0, sd = 0.5)
+    )) |> 
+  st_as_sf(coords = c("lon","lat"), crs = 4326)
+
+# Set up a shared data object; we'll use this to make plots and filters that are connected.
+shared_co2 = crosstalk::SharedData$new(co2)
+```
+
+Column {data-width=300}
+--------------------------------------------------
+
+### Filters and Info
+```{r filters}
+# Define our data filters (3 of them), and put them together into one column using the bscols() function. Note that we actually put the filters into one list(), and add an empty list() before and after our filter list... what a mess! This nonsense is necessary to make sure there is enough blank space on the left and right of our filters.
+bscols(
+  widths = c(1,8,1),
+  list(),
+  list(
+    crosstalk::filter_select(
+      "type","Type", shared_co2, ~Type,
+    ),
+    crosstalk::filter_select(
+      "treat","Treatment", shared_co2, ~Treatment
+    ),
+    crosstalk::filter_slider(
+      "conc","Concentration", shared_co2, ~conc
+    )
+  ),
+  list()
+)
+```
+
+```{r}
+# The big HTML code block below this defines a table. The reason I spell this table out by hand (terrible!) is so that we can use Kent's summarywidget package to feed in single values that are connected to our filters / plots. It's unwieldy to set up, but I think it looks nice in the dashboard. What do you think?
+```
+
+<table width = "100%">
+  <tr>
+    <th><h3>Variable</h3></th>
+    <th><h3>Summary Stat</h3></th>
+  </tr>
+  <tr>
+    <td><center><h4>Count</h4></center></td>
+    <td>
+      <center><h4><font color="#593869"><b>`r summarywidget::summarywidget(data = shared_co2, statistic =     'count')`</b></font></h4></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><h4>Sum</h4></center></td>
+    <td>
+      <center><h4><font color="#593869"><b>`r   summarywidget::summarywidget(data = shared_co2, statistic =   'sum', column = 'uptake')`</b></font></h4></center>
+    </td>
+  </tr>
+  <tr>
+    <td><center><h4>Mean</h4></center></td>
+    <td>
+    <center><h4><font color="#593869"><b>`r   summarywidget::summarywidget(data = shared_co2, statistic =   'mean', column = 'uptake')`</b></font></h4></center>
+    </td>
+  </tr>
+</table>
+
+<hr>
+
+#### Interactive Dashboards
+
+We can make interactive dashboards without resorting to Shiny, which is nice if we want to avoid the steep learning curve of {shiny}!
+
+To make our dashboard, we will use the package {crosstalk}, which allows us to connect figure(s) and data filtering options. To structure the dashboard layout, we can use {flexdashboard}.
+
+#### More Info
+
+- Crosstalk: https://rstudio.github.io/crosstalk/using.html
+- Plotly: https://plotly.com/r/
+- Flexdashboard: https://pkgs.rstudio.com/flexdashboard/ 
+
+Column {data-width=600}
+--------------------------------------------
+
+### Linked Map 
+```{r linked_map, fig.height=6}
+# Setting up a leaflet map
+
+# First, set up the colour palette.
+mypal = leaflet::colorNumeric(
+  palette = 'RdYlGn',
+  domain = co2$uptake
+)
+
+# Next, set up the actual leaflet map.
+leaflet() |> 
+  addTiles() |> 
+  addProviderTiles(providers$CartoDB.DarkMatter) |> 
+  setView(lng = -80, lat = 40, zoom = 3) |> 
+  addCircleMarkers(
+    color = ~mypal(uptake),
+    label = ~paste0(Type, ", Treatment: ", Treatment,", uptake: ", uptake),
+    data = shared_co2
+  ) |> 
+  addLegend(
+    data = shared_co2,
+    pal = mypal,
+    values = ~uptake
+  )
+```
+
+### Linked Plots
+```{r linked_plots}
+# Set up two plotly figures, combining them inside a 'subplot()'.
+subplot(
+    plot_ly(shared_co2) |> add_trace(x = ~conc, y = ~uptake, color = ~Type, type = 'scatter', mode = 'markers') |> 
+  layout(yaxis = list(title = 'CO<sup>2</sup> Uptake')),
+  plot_ly(shared_co2) |> 
+    add_trace(x = ~conc, y = ~uptake, color = ~Type, type = "box") |> 
+  layout(yaxis = list(title = 'CO<sup>2</sup> Uptake')),
+  nrows = 2,
+  shareX = TRUE)
+```
