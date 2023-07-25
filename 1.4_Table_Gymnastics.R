@@ -1,141 +1,235 @@
 # The {tidyverse} packages' functions are great for:
   #1. Organizing a table
   #2. Combining tables
-  #3. Reshaping tables (e.g. from long to wide format)
-  #4. Summarizing tables
+  #3. Summarizing tables
+  #4. Reshaping tables (e.g. from long to wide format)
+
+# I've made a sample dataset that consists of two excel sheets.
+# 1. Field sample data.
+# 2. Sample ID 'lab' data.
 
 library(tidyverse)
+library(openxlsx)
 
-# Let's use a beaver dataset that comes with R. I'd done a little bit of
-# pre-cleaning to the dataset - I'll include the code at the bottom of this script
-# in a kind of appendix.
+# Let's read them in!
 
-beav = read_csv('data/beavers.csv')
+samples = read.xlsx('data/toy_bee_sample_data.xlsx')
 
-beav
-# The dataset is currently organized by time. We could adjust this organization
-# with the arrange() function.
+ids = read.xlsx('data/toy_bee_id_data.xlsx')
 
-beav = beav |>
-  arrange(temp)
-# Now the dataset is arranged by temperature (from low to high). If we want to
-# arrange by high to low, we can also do that.
+# If we look on the right side of the screen, we can see how many rows
+# (observations) and columns (variables) each table has.
 
-beav = beav |>
-  arrange(desc(temp))
+# We could also use functions to pull out specific info. E.g.
+# 1. Number of rows.
+nrow(samples)
+# 2. Column names.
+names(samples)
+# 3. Get a glimpse of the first (or last) 6 rows.
+head(samples) #(or use tail() to see the last 6)
+# 4. View() to see the whole table. Word of warning: if your data table
+#    includes a complex polygon geometry column, this View() call can take
+#    many minutes!
+View(samples)
+# 5. Just call the object name to see it all in the console.
+samples
 
-# What if we just want to get a subset of our data, e.g. where temp is greater
-# than or equal to the mean temperature?
+# Ugh, I can't see the column names! Let's upgrade to using a {tidyverse}
+# "tibble".
+samples = as_tibble(samples)
+ids = as_tibble(ids)
 
-beav_high_temp = beav |>
-  # We put some filtering condition as the argument to filter(); it should
-  # evaluate to either TRUE or FALSE.
-  filter(temp >= mean(temp))
+samples
+# Nice, now we see the variable data types, see the first 10 rows,
+# negative numeric columns are printed in red, and we see the dimensions
+# of the table at the very top.
 
-# Let's take a quick glance at our data - I'm curious about which months
-# we have data for.
+# I notice that the sample_date column, which was a functional excel date column,
+# is now garbled. It's actually a number representing the number of days passed
+# since Jan 1st, 1970 (why that date? Maybe it was the start of computers? Not sure!)
+# We can use {openxlsx}'s function 'convertToDate()' to translate this into
+# a date column!
+samples$sample_date = convertToDate(samples$sample_date)
 
-beav |>
-  ggplot() +
-  geom_histogram(aes(obs_datetime))
+samples
 
-# Looks like it's just early November and mid December.
+# =========================================
+# = = = = = = = = = #
+# Organizing Tables #
+# = = = = = = = = = #
 
-# First, pull the month out of our datetime column.
-beav = beav |>
-  mutate(Month = lubridate::month(obs_datetime)) |>
-  mutate(Day = lubridate::day(obs_datetime))
+# Now that we have a date column, let's reorder our data, from oldest to newest.
+samples = samples |>
+  arrange(sample_date)
+# If we would like to reverse this ordering, we can wrap our ordering variable
+# in a 'desc()'.
+samples |>
+  arrange(desc(sample_date))
 
-# We can 'pivot' our tables, either from 'long' format to 'wide', or from 'wide'
-# to 'long'. In this case, I've proposed a 'long-to-wide' pivot, since we will
-# increase the number of columns and shorten the number of total rows in the table.
+# We could also filter out certain rows, e.g. if we didn't want to keep
+# any samples from before 2020. First, we could add a new column that
+# is the year of the sample, then we could filter our records based on
+# that column.
 
-# Let's summarise our data for each day...
-beav_sum = beav |>
-  # Replace the 0 and 1 for 'activ' column with text values.
-  mutate(activ = ifelse(activ == 1, 'Active', 'Not_Active')) |>
-  group_by(Month,Day) |>
-  count(activ)
+recent_records = samples |>
+  mutate(the_year = lubridate::year(sample_date)) |>
+  filter(the_year >= 2020)
 
-beav_sum
+# =========================================
+# = = = = = = = = = #
+#   Joining Tables  #
+# = = = = = = = = = #
 
-# And now let's put the counts for 'active' and 'not active' into new columns.
-beav_sum = beav_sum |>
-  ungroup() |>
-  pivot_wider(names_from = activ, values_from = n, values_fill = 0)
+# This is a very important skill, as data is frequently stored in multiple tables
+# that share certain columns in common (these are typically called 'keys').
 
+# We have at least four join types possible with the {dplyr} package that comes
+# in {tidyverse}:
+# 1. left_join (the most common, in my opinion).
+#    Keep all observations in the first table, and add on records from
+#    second table that match ALL COLUMNS IN COMMON (usually just one)
+bee_dat = samples |>
+  left_join(ids)
+# We don't have to specify which columns to join on, IF they are named identically.
 
+# 2. right_join; this is a reverse left_join, so it keeps all records of the
+#    second data table and only those that match from the first table.
 
+# 3. full_join; keeps ALL rows from both tables.
+samples |>
+  full_join(ids) |>
+  # Let's take a look at rows where the 'family' column is NA.
+  filter(is.na(family))
 
+# 4. anti_join; the reverse of a full_join, keeps only rows from first table
+#    that DON'T match any rows in the second table.
+samples |>
+  anti_join(ids)
 
+# =========================================
+# = = = = = = = = = = #
+#  Summarizing Tables #
+# = = = = = = = = = = #
 
+# When we want to summarize our tables of data, three functions really
+# come to our aid:
+# 1. count()
+# 2. group_by()
+# 3. summarise() (or "summarize()")
 
+bee_dat |>
+  mutate(the_year = lubridate::year(sample_date)) |>
+  count(the_year)
+# The results will automatically be ordered based on the variable
+# we ran the count() on.
 
+# If we would like the output to be ordered big -> small,
+# we can do that too.
 
+bee_dat |>
+  mutate(the_year = lubridate::year(sample_date)) |>
+  count(the_year, sort = T)
 
+# We can also do a count on multiple columns simultaneously.
 
+bee_dat |>
+  mutate(the_year = lubridate::year(sample_date)) |>
+  count(the_year,family)
 
-
-
+# Let's imagine we had a 'number_specimen' column that indicated
+# how many bees of a certain species were caught at that location and date.
+# We could group_by() any of our columns to than summarise whatever statistic we would like.
+bee_dat |>
+  mutate(number_specimen = sample.int(n = 5,
+                                      size = 84,
+                                      replace = TRUE)) |>
+  # We can group by a single column or by multiple columns.
+  group_by(family,subfamily) |>
+  summarise(
+    total_specimen = sum(number_specimen),
+    standard_dev = sd(number_specimen)
+            )
 
 
 # =========================================
-# Appendix
+# = = = = = = = = = #
+# Reshaping Tables  #
+# = = = = = = = = = #
 
-# i. Beaver dataset cleaning code
+# Sometimes we have a table of data set up so that we have many columns;
+# this is known as a 'wide' format. If we have fewer columns and many rows,
+# this is known as a 'long' format. I fairly frequently have to switch
+# between these modes to calculate a new column or maybe to make a ggplot.
 
-b1 = as_tibble(beaver1)
-b2 = as_tibble(beaver2)
+# Let's imagine a particular situation: we want to take our bee dataset from its
+# 'wide' format and put ALL of the columns relating to taxonomy into just two columns:
+# One could be 'tax_level', the other 'tax_name'. For example:
+bee_dat |>
+  pivot_longer(cols = c(family, subfamily, genus, subgenus, scientific_name),
+               # What is the name of the column that will receive the column names?
+               names_to = 'tax_level',
+               # What is the name of the column that will receive the info in each row?
+               values_to = 'tax_name')
+# Our data is now a LOT longer than before! Makes sense: we have fewer columns.
 
-# What do these tables look like?
-b1
-# 114 rows of data
-b2
-# 100 rows of data
+# We could do the same thing with our latitude and longitude columns, if we wanted to.
+bee_dat |>
+  pivot_longer(cols = c(lat,lon),
+               names_to = 'coordinate_type',
+               values_to = 'coordinate_val')
 
+# Let's imagine we wanted to make a bar plot showing the spread of each level of the taxonomic info.
+# We could start by pivotting our table to be long. This gives us the new columns 'tax_level' and
+# 'tax_name' that can be very easily sent to ggplot for plotting. The alternative would be
+# adding a geom_bar() to our ggplot for every single taxonomic related variable, which would be
+# a lot of extra typing, would prevent us from making a legend easily, and would prevent us
+# from easily splitting our plot into several facets. E.g.
 
+bee_dat |>
+  pivot_longer(cols = -c(sample_date,sample_id,lat,lon),
+               # Notice I actually specify which columns to EXCLUDE in the line above!
+               # If you're excluding fewer columns than including, this can save you typing.
+               names_to = 'tax_level',
+               values_to = 'tax_name') |>
+  ggplot() +
+  geom_bar(aes(tax_name)) +
+  # Split our plot into separate facets based on the 'tax_level' variable.
+  # Setting scales to 'free' allows our x and y axis levels to be facet-specific.
+  facet_wrap( ~ tax_level, scales = 'free') +
+  # I'd like angled x-axis text labels, since they can be so long!
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
 
-# We could combine these tables vertically, with "bind_rows()"
-# i.e.:
+# Maybe I'd like to exclude those 2 rows that didn't have a matching
+# ID. I could do that "in the pipe" as we modify our data temporarily and
+# then plot it, like this:
+bee_dat |>
+  pivot_longer(cols = -c(sample_date,sample_id,lat,lon),
+               names_to = 'tax_level',
+               values_to = 'tax_name') |>
+  filter(!is.na(tax_name)) |>
+  ggplot() +
+  geom_bar(aes(tax_name)) +
+  facet_wrap( ~ tax_level, scales = 'free',
+              # We can specify the layout of the facets like so:
+              ncol = 5, nrow = 1) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
 
-#   ##########
-#   #Table 1 #                 #########
-#   ##########                 #       #
-#                     ===>     # Combo #
-#                              # table #
-#   ##########                 #       #
-#   #Table 2 #                 #########
-#   ##########
-
-beavers_combined = b1 |>
-  bind_rows(b2)
-
-# The day and time columns could also be formatted better by
-# creating a 'datetime' column. To do this, we'll
-# have to use base R's "as.Date()" and "paste0()" functions,
-# plus a bit of the {stringr} and {lubridate} packages.
-beavers_clean = beavers_combined |>
-  # mutate (from {dplyr}) to create a new column...
-  mutate(the_date = as.Date(day, origin = '2013-12-31')) |>
-  # I see that some values for the 'time' column lack any mention of an hour...
-  # Correct those here.
-  mutate(time = as.character(time)) |>
-  mutate(time = case_when(
-    str_length(time) == 2 ~ paste0("0",time),
-    str_length(time) == 1 ~ paste0("00",time),
-    T ~ time
-  )) |>
-  mutate(the_time = paste0(
-    # To get hours, strip away the final 2 characters...
-    str_remove(time, '[0-9]{2}$'),
-    # Add a : in the paste0...
-    ":",
-    # And now extract the final two digits to get minutes
-    str_extract(time, '[0-9]{2}$')
-  )) |>
-  # Create another new column that puts the date and time
-  # together to make a single 'datetime' column.
-  mutate(my_datetime = lubridate::ymd_hm(paste0(the_date," ",the_time)))|>
-  dplyr::select(obs_datetime = my_datetime, temp, activ)
-
-write.csv(beavers_clean, 'data/beavers.csv', row.names = F)
+# One more thing before we leave this plot! If you want to specify
+# an order to your plot facets, we can convert the tax_level variable
+# to a factor (i.e. an ordered categorical variable)
+bee_dat |>
+  pivot_longer(cols = -c(sample_date,sample_id,lat,lon),
+               names_to = 'tax_level',
+               values_to = 'tax_name') |>
+  filter(!is.na(tax_name)) |>
+  # New line below here:
+  mutate(tax_level = factor(tax_level,levels = c('family',
+                                                 'subfamily',
+                                                 'genus',
+                                                 'subgenus',
+                                                 'scientific_name'))) |>
+  ggplot() +
+  geom_bar(aes(tax_name)) +
+  facet_wrap( ~ tax_level, scales = 'free',
+              ncol = 5, nrow = 1) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
