@@ -62,7 +62,12 @@ View(fav_s)
 
 # Let's kick off a bar plot. We create a blank ggplot2 canvas with 'ggplot()'
 # Then, we add things to this plot using the functions named in this way:
-# "geom_X" (e.g. geom_point(), geom_bar(), geom_ribbon(), etc.)
+# "geom_X" (e.g. geom_point(), geom_bar(), geom_ribbon(), etc.). We need
+# to specify what dataset we would like to visualize; we can do this either
+# in the ggplot() function call, or in the geom_col(). If we specify the
+# dataset in the former, that dataset is then 'inherited' by all subsequent
+# ggplot arguments (e.g. a geometry like our geom_col), whereas if we specify
+# the dataset in the geom_col, it's only specified inside that geometry call.
 
 ggplot(data = fav_s) +
   geom_col(aes(x = season, y = responses))
@@ -70,8 +75,19 @@ ggplot(data = fav_s) +
 # Note the '+' that connects lines of ggplot2 code. Also note the
 # 'aes()' inside the geom_col() - this stands for 'aesthetic', and we need
 # to use that when setting plotting arguments to depend on columns in our data.
+ggplot(data = fav_s) +
+  geom_col(
+    aes(x = season,
+        y = responses,
+        color = season, # This is the colour of the outline.
+        fill =  percent), # This is the colour of the column fill.
+    # Here I specify the width of the border line. Note that setting
+    # this plotting variable to a fixed variable that is NOT in our
+    # dataset, it goes outside the aes() call.
+    size = 1
+  )
 
-# If we want to set a plotting argument to a value NOT in our dataset,
+# Again, if we want to set a plotting argument to a value NOT in our dataset,
 # we can do it outside the aes() piece. E.g.
 
 ggplot(data = fav_s) +
@@ -84,7 +100,9 @@ ggplot(data = fav_s) +
 # background colours, legend position, axis labels, etc.
 # Some of these options can be found in scale_x_y (e.g. scale_colour_manual,
 # scale_y_continuous, etc.), or in theme(), which has seemingly limitless
-# options...
+# options... We will break down each part of this complicated
+# plotting code block, so don't worry about trying to understand
+# every line at this point!
 
 ggplot(data = fav_s) +
   geom_col(fill = 'lightblue',
@@ -158,7 +176,8 @@ ggplot(CO2) +
   size = 3) +
   scale_colour_brewer(palette = 'Dark2')
 
-# Can you change the palette above to Set2?
+# Can you change the palette above to Set2? How about another palette
+# from the RColorBrewer::display.brewer.all()? Try it out!
 
 # You can make a customized colour palette with a
 # gradient with scale_colour_gradientn() or scale_colour_gradient2(), or their
@@ -172,7 +191,8 @@ ggplot(data = fav_s) +
   scale_fill_gradient2(low = 'purple', mid = 'beige', high = '#61C46E', midpoint = 25)
 
 # Notice the colour I've assigned to the argument 'high'? This is a hex colour,
-# they are extremely useful when customizing your colour palette.
+# hex standing for 'hexadecimal code'.
+# They are extremely useful when customizing your colour palette.
 # Try making your own colour(s) here: https://htmlcolorcodes.com/color-picker/
 
 #======================================
@@ -222,7 +242,9 @@ fav_s |>
                y = responses,
                fill = responses))
 # This second method is preferable when your organizing logic is quite complicated
-# or illogical.
+# or illogical. This method depends on temporarily changing our dataset (e.g.
+# in how it's organized) and then 'piping' that altered dataset directly
+# into our ggplot code chunk.
 
 #======================================
 # Themes
@@ -230,6 +252,7 @@ fav_s |>
 # There are also a range of pre-made themes that we can easily apply to
 # our plots, e.g. theme_minimal(), theme_bw(), theme_classic(), etc.
 
+# Here we first save our ggplot code to an object named 'basic_plot'
 basic_plot = ggplot(data = fav_s) +
   geom_col(fill = 'lightblue',
            col = 'blue',
@@ -241,11 +264,16 @@ basic_plot = ggplot(data = fav_s) +
        x = 'Season of the Year') +
   scale_y_continuous(limits = c(0,60))
 
+# We can see the result of our plotting code by calling the object's name.
 basic_plot
 
-# Let's apply a pre-made theme.
+# And we can apply a pre-made theme by attaching it to this object.
 basic_plot +
   theme_bw()
+# Note that we can also add themes in to the original ggplot code block;
+# this was merely to demonstrate that you can create partially completed
+# plots, save them to object(s), and then add more ggplot code to the
+# object later on in your script!
 
 # If you would like more themes, one package to consider using is {ggthemes},
 # which comes with theme_map(), theme_economist(), theme_excel(), etc.
@@ -262,6 +290,9 @@ library(extrafont)
 
 loadfonts(device='win', quiet=TRUE) # You must run this line every R session.
 
+# Note that we are also specifying some elements of the plot through the
+# theme() function call. There are so many options in here! It can be
+# a little tricky to find exactly the element you mean. Here are a few examples.
 basic_plot +
   theme(plot.title = element_text(size = 20, colour = '#A0BDFC', family = 'MV Boli'),
         plot.subtitle = element_text(size = 14, colour = '#BACFFB'),
