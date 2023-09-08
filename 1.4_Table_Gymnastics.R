@@ -75,6 +75,19 @@ recent_records = samples |>
   mutate(the_year = lubridate::year(sample_date)) |>
   filter(the_year >= 2020)
 
+# # # # # # # # # #
+# EXERCISE TIME!
+# # # # # # # # # #
+
+# We can use the function 'slice()' to grab certain rows from our dataset.
+
+# Can you subset the 'samples' dataset for only the 10 most recent observations?
+
+
+
+
+
+
 # =========================================
 # = = = = = = = = = #
 #   Joining Tables  #
@@ -105,6 +118,29 @@ samples |>
 #    that DON'T match any rows in the second table.
 samples |>
   anti_join(ids)
+
+
+# # # # # # # # # #
+# EXERCISE TIME!  #
+# # # # # # # # # #
+
+# 1. Our supervisor just asked for the 'bee_dat' dataset - but only for the 20 most
+# recent records! Try to produce the dataset.
+
+
+
+# 2. What are some other ways you could produce this dataset?
+
+
+
+
+
+# 3. Going further: we can use the package {lubridate} (included in tidyverse) to
+#    pull year (or month / day / hour / second!) from a date column. Can you
+#    produce a bee_dat dataset for just 2021? How about for 2020:2022?
+
+
+
 
 # =========================================
 # = = = = = = = = = = #
@@ -138,7 +174,7 @@ bee_dat |>
 
 # Let's imagine we had a 'number_specimen' column that indicated
 # how many bees of a certain species were caught at that location and date.
-# We could group_by() any of our columns to than summarise whatever statistic we would like.
+# We could group_by() any of our columns to then summarise whatever statistic we would like.
 bee_dat |>
   mutate(number_specimen = sample.int(n = 5,
                                       size = 84,
@@ -148,7 +184,7 @@ bee_dat |>
   summarise(
     total_specimen = sum(number_specimen),
     standard_dev = sd(number_specimen)
-            )
+  )
 
 
 # =========================================
@@ -193,6 +229,8 @@ bee_dat |>
                values_to = 'tax_name') |>
   ggplot() +
   geom_bar(aes(tax_name)) +
+  labs(y = 'Number of Specimens',
+       x = 'Taxonomy') +
   # Split our plot into separate facets based on the 'tax_level' variable.
   # Setting scales to 'free' allows our x and y axis levels to be facet-specific.
   facet_wrap( ~ tax_level, scales = 'free') +
@@ -209,6 +247,8 @@ bee_dat |>
   filter(!is.na(tax_name)) |>
   ggplot() +
   geom_bar(aes(tax_name)) +
+  labs(y = 'Number of Specimens',
+       x = 'Taxonomy') +
   facet_wrap( ~ tax_level, scales = 'free',
               # We can specify the layout of the facets like so:
               ncol = 5, nrow = 1) +
@@ -230,6 +270,8 @@ bee_dat |>
                                                  'scientific_name'))) |>
   ggplot() +
   geom_bar(aes(tax_name)) +
+  labs(y = 'Number of Specimens',
+       x = 'Taxonomy') +
   facet_wrap( ~ tax_level, scales = 'free',
               ncol = 5, nrow = 1) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))

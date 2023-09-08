@@ -13,11 +13,13 @@ library(openxlsx) #Helps us read and write excel files.
 # or one of the datasets that come with R.
 
 # e.g. reading our data file "data_file.xlsx" into R and naming the object 'dat'.
+
 dat = read_excel('C:/Users/CMADSEN/Downloads/data_folder/data_file.xlsx')
+
 # Replace the file path to your dataset of interest, if you have any!
 
 # Some datasets that come with R that you could try: CO2, iris, mtcars, ToothGrowth, etc.
-
+dat = mtcars
 
 # ======================================================
 # Step 2: Exercises!
@@ -47,7 +49,9 @@ dat = read_excel('C:/Users/CMADSEN/Downloads/data_folder/data_file.xlsx')
 # through ggplot2. Don't forget to initialize your plot by calling ggplot()!
 
 
-
+ggplot() +
+  geom_point(aes(Petal.Width, Petal.Length, col = Species), data = iris) +
+  scale_colour_brewer(palette = 'Dark2')
 
 
 
