@@ -103,6 +103,7 @@ recent_records = samples |>
 #    second table that match ALL COLUMNS IN COMMON (usually just one)
 bee_dat = samples |>
   left_join(ids)
+
 # We don't have to specify which columns to join on, IF they are named identically.
 
 # 2. right_join; this is a reverse left_join, so it keeps all records of the
@@ -130,8 +131,6 @@ samples |>
 
 
 # 2. What are some other ways you could produce this dataset?
-
-
 
 
 
@@ -167,7 +166,6 @@ bee_dat |>
   count(the_year, sort = T)
 
 # We can also do a count on multiple columns simultaneously.
-
 bee_dat |>
   mutate(the_year = lubridate::year(sample_date)) |>
   count(the_year,family)
@@ -206,6 +204,7 @@ bee_dat |>
                names_to = 'tax_level',
                # What is the name of the column that will receive the info in each row?
                values_to = 'tax_name')
+
 # Our data is now a LOT longer than before! Makes sense: we have fewer columns.
 
 # We could do the same thing with our latitude and longitude columns, if we wanted to.

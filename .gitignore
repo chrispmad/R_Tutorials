@@ -4,3 +4,6 @@
 .Ruserdata
 output/**
 **.html
+data/**
+kml*
+*.kml
