@@ -270,6 +270,8 @@ rgl::rglwidget()
 ```
 
 #### HTML+CSS+JS
+
+```{=html}
 <style>
 .hello_world {
   color:purple;
@@ -296,14 +298,20 @@ rgl::rglwidget()
   transform: rotate(180deg);
   }
 </style>
+```
+::: {style="width: 400px;height:400px;color:white;"}
+::: container_box
+::: {#hw .hello_world}
+Hello World!
+:::
 
-<div style='width: 400px;height:400px;color:white;'>
-<div class = 'container_box'>
-  <div id = 'hw' class = 'hello_world'>Hello World!</div>
-  <audio id = 'item_noise' src = 'https://us-tuna-sounds-files.voicemod.net/93978887-9fe6-4c10-853d-cb8d1d49338e-1671895200854.mp3'></audio>
-</div>
-</div>
+<audio id="item_noise" src="https://us-tuna-sounds-files.voicemod.net/93978887-9fe6-4c10-853d-cb8d1d49338e-1671895200854.mp3">
 
+</audio>
+:::
+:::
+
+```{=html}
 <script>
 my_el = document.getElementById('hw');
 
@@ -314,5 +322,4 @@ my_el.addEventListener('click', el => {
     alert('You clicked me!');
 });
 </script>
-
-
+```
