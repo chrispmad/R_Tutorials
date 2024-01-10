@@ -6,7 +6,7 @@
 # i. email = chris.madsen@gov.bc.ca
 # ii. Github = chrispmad
 
-# Script last modified: 2024-01-09
+# Script last modified: 2024-01-10
 
 # # # # # # # # # # # # #
 #       PART ONE        #
@@ -152,7 +152,7 @@ oddball_data = bigf |>
   filter(longitude < -180)
 # Just 10 such rows.
 
-View(oddball_data)
+# View(oddball_data)
 
 # Here's some painful coordinate correction ...
 # This could definitely be done in excel, but sometimes
@@ -250,108 +250,6 @@ ggplot() +
   labs(title = 'We ran out of colours!') +
   theme(legend.position = 'none') # Too many colours - the legend is huge!
 
-# =======================
-#   GRIDS AND HEATMAPS
-# =======================
-# Let's make a simple heatmap - many ways to do this.
-
-# I'm going to make a grid of polygons for North American sf polygon
-NA_grid_geometry = sf::st_make_grid(NA_monolith, cellsize = c(1,1))
-
-NA_grid = tibble(cell_id = 1:length(NA_grid_geometry)) |>
-  st_set_geometry(NA_grid_geometry)
-
-rm(NA_grid_geometry)
-
-# Drop cells in the ocean.
-NA_grid_masked = NA_grid |>
-  dplyr::filter(
-    sf::st_intersects(
-      sf::st_centroid(geometry),
-      NA_monolith, sparse = F)
-    )
-
-ggplot() +
-  geom_sf(data = NA_monolith) +
-  geom_sf(data = NA_grid_masked) +
-  labs(title = 'This looks pretty cool')
-
-# Get count of sightings in each cell.
-sightings_by_grid_cell = NA_grid |> st_join(
-  bigf_sf |> select(number,title)
-) |>
-  filter(!is.na(title)) |>
-  sf::st_drop_geometry() |>
-  count(cell_id, name = 'number_sightings')
-
-NA_grid_masked = NA_grid_masked |>
-  left_join(sightings_by_grid_cell)
-
-ggplot() +
-  geom_sf(data = NA_monolith) +
-  geom_sf(data = NA_grid_masked,
-          aes(fill = number_sightings,
-              alpha = 0.85),
-          col = 'transparent') +
-  labs(title = 'This looks even cooler') +
-  scale_fill_gradient2(midpoint = 50,
-                       low = 'darkgreen',
-                       mid = 'gold',
-                       high = 'red') +
-  scale_alpha_continuous(guide = 'none') # This is another way to drop a legend item.
-
-# We can also interpolate a *real* heatmap using a raster.
-library(gstat)
-library(terra)
-
-# Make a raster that spans the bounding box of NA_monolith object, with pixel resolution
-# of 1 degree.
-r <- terra::rast(NA_monolith, res = 1)
-
-# Fill it with dummy vars, just so we can plot it and check it out.
-r$dummy_var = sample(c(1:3), size = terra::ncell(r), replace = T)
-# 8211 cells
-
-# Mask to our NA monolith polygon.
-r <- terra::mask(r, vect(NA_monolith))
-
-plot(r)
-
-# Turn our vector data into a raster using the 'r' raster as a template.
-bigf_r = terra::rasterize(x = bigf_sf, y = r, fun = 'count', touches = TRUE)
-
-plot(bigf_r)
-
-# Find centroids of raster cells, use these in interpolation functions below.
-bigf_v = terra::centroids(terra::as.polygons(bigf_r))
-
-interp_1 = terra::interpNear(r, bigf_v, radius = 5, field = 'count')
-plot(interp_1)
-
-interp_2 = terra::interpIDW(r, bigf_v, radius = 5, field = 'count')
-plot(interp_2)
-
-# 4. Back to Leaflet (phew!)
-
-# Let's make a raster colour palette.
-bigf_r_colpal = colorNumeric(palette = 'Spectral',
-                             domain = terra::values(interp_2),
-                             na.color = 'transparent',
-                             reverse = T)
-
-bigf_r_colpal_legend = colorNumeric(palette = 'Spectral',
-                                    domain = terra::values(interp_2),
-                                    na.color = 'transparent',
-                                    reverse = F)
-
-leaflet() |>
-  addTiles() |>
-  addRasterImage(colors = bigf_r_colpal,
-                 x = interp_2) |>
-  addLegend(pal = bigf_r_colpal_legend,
-            values = terra::values(interp_2),
-            # Here's how we can reorder legend so that high values are on top.
-            labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
 
 # Make popup table for each point. These tables are in HTML - hard to read, but
 # great for visualizations / Shiny apps etc.
@@ -414,3 +312,37 @@ l |>
                                   shiny::HTML),
                    group = 'circles',
                    clusterOptions = markerClusterOptions(maxClusterRadius = 25))
+
+# Choropleth - these are always fun
+
+choropleth = statprov |>
+  left_join(
+    bigf_sf |>
+      sf::st_drop_geometry() |>
+      count(state_prov, name = 'bigfoot_sightings')
+  )
+
+bf_pal = colorNumeric(palette = 'viridis',
+                      domain = choropleth$bigfoot_sightings)
+l |>
+  addPolygons(
+    color = '#424447',
+    weight = 2,
+    fillColor = ~bf_pal(bigfoot_sightings),
+    fillOpacity = 0.75,
+    label = ~paste0(state_prov,': ',bigfoot_sightings),
+    data = choropleth
+  ) |>
+  addLegend(pal = bf_pal, values = choropleth$bigfoot_sightings)
+
+# Let's save our dataset as an R object so we can use it in the next leaflet script.
+bigfoot_data = list('bigf_sf' = bigf_sf,
+                    'NA_monolith' = NA_monolith,
+                    'l' = l,
+                    'bigf_popup_tables' = bigf_popup_tables,
+                    'choropleth' = choropleth)
+
+saveRDS(
+  bigfoot_data,
+  'data/bigfoot_data.Rds'
+)
