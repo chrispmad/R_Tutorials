@@ -196,8 +196,8 @@ l |>
 # Allow the user to add things to the map: their GPS location, drawings, etc.
 l |>
   leaflet.extras::addControlGPS() |>
-  leaflet::addMeasure() |>
-  leaflet.extras::addDrawToolbar() |>
+  leaflet::addMeasure(primaryLengthUnit = 'kilometers') |>
+  leaflet.extras::addDrawToolbar(editOptions = editToolbarOptions()) |>
   leaflet.extras::addSearchFeatures(targetGroups = 'circles',
                                     options = searchFeaturesOptions(propertyName = 'label')) |>
   leaflet.extras::addSearchOSM(options = leaflet.extras::searchOptions(zoom = 8))
@@ -207,7 +207,7 @@ l |>
 l |>
   leaflet.extras::addFullscreenControl() |>
   addMiniMap('bottomleft') |>
-  leaflet.extras2::addEasyprint() |>
+  leaflet.extras2::addEasyprint(options = leaflet.extras2::easyprintOptions(hideControlContainer = F)) |>
   leaflet.extras2::addSpinner() # This only shows up in shiny apps...
 
 
@@ -326,6 +326,7 @@ server = function(input, output, server){
 
   output$bigfoot_map = renderLeaflet({
     l |>
+      hideGroup('circles') |>
       addPolygons(
         color = '#424447',
         weight = 2,

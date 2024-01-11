@@ -297,11 +297,11 @@ l |>
 
 l |>
   addCircleMarkers(data = bigf_sf,
-                   label = ~title,
+                   # label = ~title,
                    radius = 1,
                    weight = 0.5,
-                   popup = lapply(bigf_popup_tables,
-                                  shiny::HTML),
+                   # popup = lapply(bigf_popup_tables,
+                                  # shiny::HTML),
                    group = 'circles')
 
 # We could also try clustering the markers
