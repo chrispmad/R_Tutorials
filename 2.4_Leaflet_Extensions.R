@@ -22,6 +22,7 @@ library(htmltools) # Gives us tools to produce and modify HTML code
 
 # 1. Read in data from last script.
 bigfoot_dat = readRDS('data/bigfoot_data.Rds')
+
 bigf_sf = bigfoot_dat$bigf_sf
 NA_monolith = bigfoot_dat$NA_monolith
 l = bigfoot_dat$l
@@ -169,7 +170,55 @@ l = l |>
     group = 'circles'
   )
 
-# 4. Exploring leaflet.extras and leaflet.extras2 -------------------------
+# 4. Making custom markers - either still images (PNG / SVG) or GIFs work well
+sponge = data.frame(lat = c(49, 52, 58),
+                    lng = c(-120,-118,-125),
+                    boop = c(1:3))
+
+trav = data.frame(lat = 35, lng = -100, boop = 'x')
+
+ducks = data.frame(lat = c(50, 48),
+                   lng = c(-90, -80))
+
+sponge_markers = leaflet::makeIcon(
+  #iconUrl = "http://127.0.0.1:40473/graphics/75a5fba1-530d-45f0-957f-3e413a741fa5.png"
+  iconUrl = "https://i.gifer.com/yB.gif",
+  iconWidth = 100,
+  iconHeight = 100,
+  iconAnchorX = 50,
+  iconAnchorY = 50
+)
+
+trav_markers = leaflet::makeIcon(
+  iconUrl = 'https://i.gifer.com/origin/26/264162db570a4614c8fd7dc15c757b8e_w200.webp',
+  iconWidth = 200,
+  iconHeight = 200,
+  iconAnchorX = 100,
+  iconAnchorY = 100
+)
+
+duck_markers = leaflet::makeIcon(
+  iconUrl = 'https://cdn-icons-png.flaticon.com/512/1993/1993713.png',
+  iconWidth = 100,
+  iconHeight = 100,
+  iconAnchorX = 50,
+  iconAnchorY = 50
+)
+
+leaflet() |>
+  addTiles() |>
+  addMarkers(icon = sponge_markers,
+             data = sponge,
+             group = 'sponge') |>
+  addMarkers(icon = trav_markers,
+             data = trav,
+             group = 'trav') |>
+  addMarkers(icon = duck_markers,
+             data = ducks) |>
+  addLayersControl(overlayGroups = c('sponge','trav','ducks'),
+                   options = layersControlOptions(collapsed = F))
+
+# 5. Exploring leaflet.extras and leaflet.extras2 -------------------------
 
 l |>
   # Leaflet has built-in heatmap function
@@ -262,7 +311,7 @@ leaflet() |>
               options = velocityOptions(velocityScale = 0.05)) |>
   addLayersControl(baseGroups = "base", overlayGroups = "velo")
 
-# 5. custom easyButtons with JavaScript --------------------------------
+# 6. custom easyButtons with JavaScript --------------------------------
 
 # A final note:
 # leaflet maps are, in the end, javascript; we can write our own custom
@@ -299,7 +348,7 @@ leaflet() |>
   addEasyButton(zoom_to_globe_button) |>
   addEasyButton(find_me_button)
 
-# 6. Leaflet in Shiny ---------------------------
+# 7. Leaflet in Shiny ---------------------------
 
 # Leaflet maps are awesome to include in R Shiny apps. One interesting
 # usecase is to use these maps as selectors - when people click on a part of the map,
