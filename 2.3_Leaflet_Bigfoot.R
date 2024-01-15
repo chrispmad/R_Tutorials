@@ -196,7 +196,7 @@ bigf_sf = bigf |>
   st_as_sf(coords = c("longitude","latitude"),
            crs = 4326) # This means the data we're feeding in to st_as_sf is WGS 84 lat/long.
 
-# Let's grab polygons for Canada and the USA.
+# Let's grab polygons for Canada and the USA and Mexico.
 library(rnaturalearth)
 
 # Let's get polygons for Canada, the USA and Mexico.
@@ -253,13 +253,15 @@ ggplot() +
 
 # Make popup table for each point. These tables are in HTML - hard to read, but
 # great for visualizations / Shiny apps etc.
-bigf_popup_tables = leafpop::popupTable(bigf_sf |>
-                      sf::st_drop_geometry() |>
-                      dplyr::select(classification,
-                                    timestamp,
-                                    state_prov,
-                                    title,
-                                    country))
+bigf_popup_tables = leafpop::popupTable(
+  bigf_sf |>
+    sf::st_drop_geometry() |>
+    dplyr::select(classification,
+                  timestamp,
+                  state_prov,
+                  title,
+                  country)
+)
 
 
 # Let's set up a leaflet map with multiple basemaps, layers control etc.
@@ -291,7 +293,7 @@ l |>
   addCircleMarkers(data = bigf_sf,
                    label = ~title,
                    popup = lapply(bigf_popup_tables,
-                                  shiny::HTML),
+                                  htmltools::HTML),
                    group = 'circles')
 # Too crowded! How about with smaller circles?
 
@@ -324,6 +326,7 @@ choropleth = statprov |>
 
 bf_pal = colorNumeric(palette = 'viridis',
                       domain = choropleth$bigfoot_sightings)
+
 l |>
   addPolygons(
     color = '#424447',
