@@ -4,6 +4,11 @@
 # environments where RAM usage and operation times are critical, such as
 # in R shiny apps.
 
+# Other Resources:
+# 1. Cheat sheet: https://images.datacamp.com/image/upload/v1653830846/Marketing/Blog/data_table_cheat_sheet.pdf
+# 2. {data.table} 's official intro vignette: https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html
+# 3. A 'gentle introduction to data.table': https://atrebas.github.io/post/2020-06-17-datatable-introduction/
+
 # Script Author: Chris Madsen
 # Contact info:
 # i. email = chris.madsen@gov.bc.ca
