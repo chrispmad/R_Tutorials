@@ -142,21 +142,28 @@ lang = st_as_sf(
 
 leaflet() |> addTiles() |> addPolygons(data = lang)
 
-results = rstac::stac(attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source")) %>% # The stac source
+# We start off the query by identifying a STAC source.
+planetarycomp_source = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source")
+
+results = rstac::stac(planetarycomp_source) |>  # The stac source
+  # Here is where we input our search parameters.
   rstac::stac_search(
-    datetime = '2018-09-01/2023-10-31',
+    # The span of dates to search within
+    datetime = '2018-09-01/2024-03-01',
+    # Identify the collection; in this case, it's "sentinel-2-l2a".
     collections = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "collection_name"),
-    bbox = sf::st_bbox(lang)) %>%
+    # Provide a bounding box to narrow search.
+    bbox = sf::st_bbox(lang)) |>
   rstac::get_request()
 
 results$features |>
   length()
-# 250 satellite images in this time-span!
+# 250 Sentinel2 satellite images for Langford in this time frame!
 
 ### Custom Queries
 
 # Even better, we can design our own search query to only return
-# images if they have less than, e.g., 10% cloud cover.
+# images if they meet certain criteria, e.g., less than 10% cloud cover.
 
 s_obj = rstac::stac(attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source"))
 collection_name = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "collection_name")
@@ -170,14 +177,14 @@ results_q = s_obj |> # The stac source
     collection == {{collection_name}} &&
     `eo:cloud_cover` <= 10  &&
     `s2:mgrs_tile` == {{tile_name}}  &&
-    anyinteracts(datetime, interval("2018-09-01", "2023-10-31"))
+    anyinteracts(datetime, interval("2018-09-01", "2024-03-01"))
     ) |>
   rstac::post_request()
 
 # Check out how many features were returned.
 results_q$features |>
   length()
-#136 satellite images between Sept 1, 2018 and Oct 31, 2023, for Victoria.
+#137 satellite images between Sept 1, 2018 and Oct 31, 2023, for Victoria.
 
 # What's the oldest image, and newest image, in this collection?
 # We can use these dates to intelligently inform {rsi} downloads
@@ -197,112 +204,35 @@ recent_date = stringr::str_remove(recent_date, paste0('.*',tile_name,'_')) |>
   stringr::str_remove('T.*') |>
   lubridate::ymd()
 
-par(mfrow = c(1, 1))
-
-if(file.exists('data/late_lang_ls_r.tif')){
-  late_lang_ls_r = terra::rast('data/late_lang_ls_r.tif')
-} else {
-  late_lang_ls = get_landsat_imagery(
-    lang |> st_transform(crs = 3005),
-    # Add a buffer of 15 days to start date so that we can snag a couple images
-    # to average over; otherwise, we might end up with a partial image.
-    start_date = as.character(oldest_date - 15),
-    end_date = as.character(oldest_date + 1),
-    output_filename = tempfile(fileext = ".tif")
-  )
-  late_lang_ls_r = terra::rast(late_lang_ls)
-  terra::writeRaster(late_lang_ls_r, 'data/late_lang_ls_r.tif')
-}
-
-terra::plotRGB(late_lang_ls_r, r = 4, g = 3, b = 2, stretch = "lin")
-
-late_langford_ndvi = calculate_indices(
-  late_lang_ls_r,
-  asi[asi$short_name == 'NDVI',],
-  output_filename = tempfile(fileext = '.tif')
-)
-
-llndvi = terra::rast(late_langford_ndvi)
-plot(llndvi)
-
-# if(file.exists('data/late_lang_sent2_r.tif')){
-#   late_lang_sent2_r = terra::rast('data/late_lang_sent2_r.tif')
-# } else {
-#   late_lang_sent2 = get_sentinel2_imagery(
-#     lang,
-#     # Add a buffer of 50 days to start date so that we can snag a couple images
-#     # to average over; otherwise, we might end up with a partial image.
-#     start_date = as.character(oldest_date - 100),
-#     end_date = as.character(oldest_date + 1),
-#     output_filename = tempfile(fileext = ".tif")
-#   )
-#   late_lang_sent2_r = terra::rast(late_lang_sent2)
-#   terra::writeRaster(late_lang_sent2_r, 'data/late_lang_sent2_r.tif')
-# }
-
-if(file.exists('data/early_lang_ls_r.tif')){
-  early_lang_ls_r = terra::rast('data/early_lang_ls_r.tif')
-} else {
-  early_lang_ls = get_landsat_imagery(
-    lang |> st_transform(crs = 3005),
-    # Add a buffer of 15 days to start date so that we can snag a couple images
-    # to average over; otherwise, we might end up with a partial image.
-    start_date = as.character(recent_date - 1),
-    end_date = as.character(recent_date + 45),
-    output_filename = tempfile(fileext = ".tif")
-  )
-  early_lang_ls_r = terra::rast(early_lang_ls)
-  terra::writeRaster(early_lang_ls_r, 'data/early_lang_ls_r.tif')
-}
-
-terra::plotRGB(early_lang_ls_r, r = 4, g = 3, b = 2, stretch = "lin")
-
-early_langford_ndvi = calculate_indices(
-  early_lang_ls_r,
-  asi[asi$short_name == 'NDVI',],
-  output_filename = tempfile(fileext = '.tif')
-)
-
-elndvi = terra::rast(early_langford_ndvi)
-plot(elndvi)
-
-# if(file.exists('data/early_vic_r.tif')){
-#   early_vic_r = terra::rast('data/early_vic_r.tif')
-# } else {
-#   early_vic = get_sentinel2_imagery(
-#     vic,
-#     start_date = as.character(recent_date - 1),
-#     end_date = as.character(recent_date + 100),
-#     output_filename = tempfile(fileext = ".tif")
-#   )
-#   early_vic_r = terra::rast(early_vic)
-#   terra::writeRaster(early_vic_r, 'data/early_vic_r.tif')
-# }
-
-par(mfrow = c(1, 2))
-terra::plotRGB(late_lang_ls_r, r = 4, g = 3, b = 2, stretch = "lin")
-terra::plotRGB(early_lang_ls_r, r = 4, g = 3, b = 2, stretch = "lin")
 
 # =======================
 #  ELEVATION
 # =======================
 
 # And finally, we can get a DEM of the area.
-# Many options for this, but we can use {rsi} to
-# do it.
-vic_dem = get_dem(
-  vic,
-  output_filename = tempfile(fileext = ".tif"),
+# Many options for this, we can use {rsi} to
+# do it, or {elevatr}
+vic_dem = rsi::get_dem(
+  vic
 )
-# Note: we could also use the {elevatr} package to get elevation data!
 
-vic_dem_r = terra::rast(vic_dem)
+vic_dem = terra::rast(vic_dem)
+
+plot(vic_dem)
+
+# vic_dem = get_dem(
+#   vic,
+#   output_filename = tempfile(fileext = ".tif"),
+# )
+# # Note: we could also use the {elevatr} package to get elevation data!
+#
+# vic_dem_r = terra::rast(vic_dem)
 
 # Let's take a look at the landsat and the sentinel2 images
 par(mfrow = c(1, 3))
 terra::plotRGB(vic_landsat_r, r = 4, g = 3, b = 2, stretch = "lin")
 terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
-terra::plot(vic_dem_r)
+terra::plot(vic_dem)
 
 # =======================
 #  Custom query for {rsi} package
@@ -312,8 +242,8 @@ terra::plot(vic_dem_r)
 # the kind of satellite images that we download,
 # e.g. if we only wish to retain sentinel-2 images with cloud cover
 # of 25% or less, we could use the following query.
-sentinel2_25cc_qf <- function(bbox, start_date, end_date, limit,
-                              asset_names = rsi::sentinel2_band_mapping$planetary_computer_v1,
+landsat_25cc_qf <- function(bbox, start_date, end_date, limit,
+                              asset_names = rsi::landsat_band_mapping$planetary_computer_v1,
                               ...) {
   # This will be the spatial object or bounding box that we feed in.
   geom <- rstac::cql2_bbox_as_geojson(bbox)
@@ -326,107 +256,129 @@ sentinel2_25cc_qf <- function(bbox, start_date, end_date, limit,
   request <- rstac::ext_filter(
     rstac::stac(stac_source),
     # These are the CQL filter statements
-    collection == "sentinel-2-l2a" &&
+    collection == {{collection}} &&
       t_intersects(datetime, {{datetime}}) &&
       s_intersects(geom, {{geom}}) &&
-      platform == "Sentinel-2B" &&
       `eo:cloud_cover` < 25 # We could alter this
   )
   rstac::items_fetch(rstac::post_request(request))
 }
 
-# We could use the above customized query function like so:
-if(file.exists('data/vic_sentinel2_25cc.tif')){
+par(mfrow = c(1, 1))
 
-  vic_sentinel2_25cc_r = terra::rast('data/vic_sentinel2_25cc.tif')
-
-  } else {
-  vic_sentinel2_25cc = get_sentinel2_imagery(
-    vic,
-    start_date = "2023-09-01",
-    end_date = "2023-10-31",
+# Download Landsat satellite imagery for Langford area for the
+# oldest dates available (October 2020)
+if(file.exists('data/old_lang_ls_r.tif')){
+  old_lang_ls_r = terra::rast('data/old_lang_ls_r.tif')
+} else {
+  old_lang_ls = get_landsat_imagery(
+    lang |> st_transform(crs = 3005),
+    # Buffered oldest date to include up to 60 days closer to present day
+    # so as to catch a good number of satellite images.
+    start_date = as.character(oldest_date - 1),
+    end_date = as.character(oldest_date + 60),
     output_filename = tempfile(fileext = ".tif"),
-    query_function = sentinel2_25cc_qf
+    query_function = landsat_25cc_qf
   )
-
-  vic_sentinel2_25cc_r = terra::rast(vic_sentinel2_25cc)
-
-  terra::writeRaster(vic_sentinel2_25cc_r, 'data/vic_sentinel2_25cc.tif')
+  old_lang_ls_r = terra::rast(old_lang_ls)
+  terra::writeRaster(old_lang_ls_r, 'data/old_lang_ls_r.tif', overwrite = T)
 }
 
-# We can select one or more indices from that asi table that we created
-# at the top of the script.
-# e.g. NDVI
-ndvi = asi[asi$short_name == 'NDVI',]
+terra::plotRGB(old_lang_ls_r, r = 4, g = 3, b = 2, stretch = "lin")
 
-# Now we can calculate the index / indices on our satellite images.
-vic_early_ndvi = calculate_indices(
-  early_vic_r,
-  ndvi,
+old_langford_ndvi = calculate_indices(
+  old_lang_ls_r,
+  asi[asi$short_name == 'NDVI',],
   output_filename = tempfile(fileext = '.tif')
 )
 
-vic_late_ndvi = calculate_indices(
-  late_vic_r,
-  ndvi,
+olndvi = terra::rast(old_langford_ndvi)
+plot(olndvi)
+
+# Download Landsat satellite imagery for Langford area for the
+# most recent dates available (October 2023)
+if(file.exists('data/recent_lang_ls_r.tif')){
+  recent_lang_ls_r = terra::rast('data/recent_lang_ls_r.tif')
+} else {
+  recent_lang_ls = get_landsat_imagery(
+    lang |> st_transform(crs = 3005),
+    # Buffered recent date 100 days later so as to catch a good
+    # number of satellite images.
+    start_date = as.character(recent_date - 60),
+    end_date = as.character(recent_date + 1),
+    output_filename = tempfile(fileext = ".tif"),
+    query_function = landsat_25cc_qf
+  )
+  recent_lang_ls_r = terra::rast(recent_lang_ls)
+  terra::writeRaster(recent_lang_ls_r, 'data/recent_lang_ls_r.tif', overwrite = T)
+}
+
+terra::plotRGB(recent_lang_ls_r, r = 4, g = 3, b = 2, stretch = "lin")
+
+recent_langford_ndvi = calculate_indices(
+  recent_lang_ls_r,
+  asi[asi$short_name == 'NDVI',],
   output_filename = tempfile(fileext = '.tif')
 )
+
+rlndvi = terra::rast(recent_langford_ndvi)
 
 # Let's check them out
 par(mfrow = c(1, 2))
-vic_early_ndvi_r = terra::rast(vic_early_ndvi)
-vic_late_ndvi_r = terra::rast(vic_late_ndvi)
-terra::plot(vic_early_ndvi_r, range = c(-1, 1))
-terra::plot(vic_late_ndvi_r, range = c(-1, 1))
+terra::plot(olndvi, main = paste0(oldest_date,' to ',oldest_date+60), range = c(-1, 1))
+terra::plot(rlndvi, main = paste0(recent_date-60,' to ', recent_date), range = c(-1, 1))
 
 # Let's calculate the difference between the early and the late NDVI images.
-par(mfrow = c(1, 2))
-dif = vic_late_ndvi_r - vic_early_ndvi_r
+dif = rlndvi - olndvi
+par(mfrow = c(1,1))
 terra::plot(dif)
 hist(dif, main = "", xlab = "NDVI")
 
-# Let's save the early and late victoria images to a single raster 'stack'
-stack = stack_rasters(
-  c(
-    vic_early_ndvi,
-    vic_late_ndvi
-  ),
-  tempfile(fileext = ".vrt")
-)
+#What's the average change in NDVI?
+mean(terra::values(dif),na.rm=T)
 
-stack_rast = terra::rast(stack)
-names(stack_rast) = c("NDVI_vic_early", "NDVI_vic_late")
-stack_rast
+# Let's make a ggplot from the raster, it would look nicer!
+dif_df = terra::as.data.frame(dif, xy = T)
+
+ggplot(dif_df) +
+  geom_raster(aes(x,y, fill = NDVI)) +
+  scale_fill_gradient2(high = 'darkgreen')
+
+# =======================
+#  3D PLOTS WITH VISUAL OVERLAY
+# =======================
 
 # Can we use the DEM to make a rayshader plot, and then
-# throw our NDVI plot on to colour the plot?
+# throw our NDVI plot on to colour the plot? Yes!
+
+# 1. Victoria
 
 #create bing png to overlay
-png("overlay_vic_elev.png")
+png("output/overlay_vic_elev.png")
 
 terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
 
 dev.off()
-magick::image_read('overlay_vic_elev.png')
-my_overlay = png::readPNG('overlay_vic_elev.png')
+magick::image_read('output/overlay_vic_elev.png')
+my_overlay = png::readPNG('output/overlay_vic_elev.png')
 
 # Reduce raster complexity
-vic_dem_r_s = terra::aggregate(vic_dem_r, fact = 2)
+vic_dem_r_s = terra::aggregate(vic_dem, fact = 2)
 
 vic_el = rayshader::raster_to_matrix(vic_dem_r_s)
 
 vic_el |>
-  sphere_shade(texture = "desert") %>%
-  add_water(detect_water(vic_el), color = "desert") %>%
-  add_shadow(ray_shade(vic_el), 0.5) %>%
+  sphere_shade(texture = "desert") |>
+  add_water(detect_water(vic_el), color = "desert") |>
+  add_shadow(ray_shade(vic_el), 0.5) |>
   plot_map()
 
-vic_el %>%
-  sphere_shade(texture = "desert") %>%
+vic_el |>
+  sphere_shade(texture = "desert") |>
   add_overlay(my_overlay) |>
-  add_water(detect_water(vic_el), color = "desert") %>%
-  add_shadow(ray_shade(vic_el, zscale = 3), 0.5) %>%
-  add_shadow(ambient_shade(vic_el), 0) %>%
+  add_water(detect_water(vic_el), color = "desert") |>
+  add_shadow(ray_shade(vic_el, zscale = 3), 0.5) |>
+  add_shadow(ambient_shade(vic_el), 0) |>
   plot_3d(vic_el, zscale = 10, fov = 0, theta = 30, zoom = 0.75, phi = 35, windowsize = c(1000, 800))
 
 # filename_movie = tempfile()
@@ -435,181 +387,29 @@ vic_el %>%
 #              frames = 60, phi = 35, zoom = 0.8, theta = 30,
 #              title_text = "Victoria, BC")
 
-# =======================
-#  BOGOTA, COLOMBIA
-# =======================
+# 2. Langford
 
-# Let's do this all again for Bogota!
+lang_el = terra::crop(vic_dem, sf::st_transform(lang,3005))
 
-bog = st_as_sf(
-  data.frame(lat = c(4.83920, 4.470315),
-             lng = c(-74.25, -73.95)),
-  coords = c('lng','lat'),
-  crs = 4326
-) |>
-  st_bbox() |>
-  st_as_sfc() |>
-  st_transform(crs = 21817)
+plot(lang_el)
 
-leaflet() |>
-  addTiles() |>
-  addPolygons(data = bog |>
-                st_transform(4326))
+png("output/overlay_langford.png", width = 7, height = 6,
+    units = 'in', res = 100)
+ggplot(dif_df) +
+  geom_raster(aes(x,y, fill = NDVI)) +
+  scale_fill_gradient2(high = 'darkgreen') +
+  ggthemes::theme_map() +
+  theme(legend.position = 'none')
+dev.off()
 
-bog_el_filepath = rsi::get_dem(
-  bog,
-  output_filename = tempfile(fileext = ".tif")
-  )
+langlord_overlay = png::readPNG('output/overlay_langford.png')
 
-# How about a version where we zoom way out from Bogota?
-bog_z = bog |>
-  st_buffer(dist = 300000) |>
-  st_transform(4326) |>
-  st_bbox() |>
-  st_as_sfc()
+lang_el = rayshader::raster_to_matrix(lang_el)
 
-leaflet() |>
-  addTiles() |>
-  addPolygons(data = bog_z |>
-                st_transform(4326))
-
-bog_z_bbox = st_bbox(
-  bog_z |>
-    st_transform(4326)
-)
-
-bog_zoomedout = terra::rast(
-  elevatr::get_elev_raster(
-  locations = data.frame(x = c(bog_z_bbox$xmin,bog_z_bbox$xmax),
-                         y = c(bog_z_bbox$ymin,bog_z_bbox$ymax)),
-  prj = st_crs(bog |> st_transform(4326)),
-  z = 8)
-)
-
-bog_zoomedout = terra::mask(bog_zoomedout, vect(st_as_sfc(bog_z_bbox)))
-bog_zoomedout = terra::crop(bog_zoomedout, vect(st_as_sfc(bog_z_bbox)), mask=TRUE)
-
-terra::plot(bog_zoomedout)
-
-# bog_el = terra::rast(bog_el_filepath)
-# # bog_z_el = terra::rast(bog_zoomedout)
-#
-# # 'Tare' the elevation to the min value for this raster.
-# bog_el_values = values(bog_el)
-# ordered_bog_els = bog_el_values[order(bog_el_values)]
-# min_bog_el = ordered_bog_els[ordered_bog_els > 0][1]
-#
-# # Correct the 0s that are likely due to missing data.
-# bog_el[bog_el < min_bog_el] <- min_bog_el
-#
-# # Subtract the minimum bog elevation from all values.
-# new_bog_values = values(bog_el) - min_bog_el
-# bog_el[] <- new_bog_values
-
-# 'Tare' the elevation to the min value for this raster.
-bog_zoomedout_v = values(bog_zoomedout)
-bog_zoomedout_v_o = bog_zoomedout_v[order(bog_zoomedout_v)]
-min_bog_zoomedout_v = bog_zoomedout_v_o[bog_zoomedout_v_o > 0][1]
-
-# Correct the 0s that are likely due to missing data.
-bog_zoomedout[bog_zoomedout < min_bog_zoomedout_v] <- min_bog_zoomedout_v
-
-# Subtract the minimum bog elevation from all values.
-new_bog_values = values(bog_zoomedout) - min_bog_zoomedout_v
-bog_zoomedout[] <- new_bog_values
-
-terra::plot(bog_zoomedout)
-# Can we reduce the resolution of these pixels?
-bog_z_a = terra::aggregate(bog_zoomedout,
-                 fact = 4)
-
-terra::plot(bog_z_a)
-
-bog_m = rayshader::raster_to_matrix(bog_z_a)
-
-bog_m |>
-  sphere_shade(texture = "imhof1") %>%
-  plot_map()
-
-bog_m |>
-  sphere_shade(texture = "imhof1") %>%
-  # add_overlay(my_overlay) |>
-  # add_shadow(ray_shade(bog_m, zscale = 3), 0.5) %>%
-  # add_shadow(ambient_shade(bog_m), 0) %>%
-  plot_3d(bog_m, zscale = 90, fov = 0, theta = 30, zoom = 0.75, phi = 35,
-          windowsize = c(1000, 800)#,
-          # baseshape = "hex"
-          )
-
-bog_coords = st_centroid(bog) |>
-  st_transform(crs = 4326) |>
-  st_coordinates() |> as.data.frame()
-
-med_coords = c(6.24931631744868, -75.57297670469256)
-buc_coords = c(7.115281699926891, -73.11839509263349)
-
-render_label(bog_m,
-             lat = bog_coords$Y,
-             long = bog_coords$X,
-             extent = terra::ext(bog_z_a),
-             altitude = 5000, zscale = 90,
-             text = "Bogota", textsize = 2, linewidth = 5)
-render_label(bog_m,
-             lat = med_coords[1],
-             long = med_coords[2],
-             extent = terra::ext(bog_z_a),
-             altitude = 5000, zscale = 90,
-             text = "Medellin", textsize = 2, linewidth = 5)
-render_label(bog_m,
-             lat = buc_coords[1],
-             long = buc_coords[2],
-             extent = terra::ext(bog_z_a),
-             altitude = 5000, zscale = 90,
-             text = "Bucaramanga", textsize = 2, linewidth = 5)
-
-filename_movie = tempfile()
-
-#You can change to an oscillating orbit. The magnification is increased and azimuth angle set to 30.
-# A title has also been added using the title_text argument.
-
-#Un-comment the following to run:
-render_movie(filename = filename_movie, type = "oscillate",
-            frames = 60,  phi = 30, zoom = 0.8, theta = -90,
-            title_text = "Andes Mountains in Colombia")
-# Let's get some satellite imagery...
-
-# Get tile name for Bogota.
-search_obj = rstac::stac(attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source")) %>% # The stac source
-  rstac::stac_search(
-    datetime = '2023-09-01/2023-10-31',
-    collections = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "collection_name"),
-    bbox = sf::st_bbox(bog |> st_transform(crs = 4326)),
-    limit = 1) %>%
-  rstac::get_request()
-
-s_obj = rstac::stac(attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source"))
-collection_name = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "collection_name")
-tile_name = stringr::str_extract(search_obj$features[[1]]$id, '(?<=R[0-9]{3}_T).{5}(?=_)')
-bog_wgs = st_transform(bog, 4326)
-
-it_obj = s_obj |> # The stac source
-  rstac::ext_filter(
-    # These are our filtering conditions
-    collection == {{collection_name}} &&
-      `eo:cloud_cover` <= 10  &&
-      `s2:mgrs_tile` == {{tile_name}}  &&
-      anyinteracts(datetime, interval("2018-09-01", "2023-10-31"))
-  ) |>
-  rstac::post_request()
-
-# Check out how many features were returned.
-it_obj
-
-# When was the earliest satellite image from?
-it_obj$features[length(it_obj$features)]
-
-early_date = stringr::str_remove(it_obj$features[length(it_obj$features)][[1]]$id, paste0('.*',tile_name,'_')) |>
-  stringr::str_remove('T.*') |>
-  lubridate::ymd()
-
-
+lang_el |>
+  sphere_shade(texture = "desert") |>
+  add_overlay(langlord_overlay) |>
+  add_water(detect_water(lang_el), color = "desert") |>
+  add_shadow(ray_shade(lang_el, zscale = 3), 0.5) |>
+  add_shadow(ambient_shade(lang_el), 0) |>
+  plot_3d(vic_el, zscale = 10, fov = 0, theta = 30, zoom = 0.75, phi = 35, windowsize = c(1000, 800))
