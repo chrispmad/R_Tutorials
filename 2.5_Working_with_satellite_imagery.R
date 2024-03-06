@@ -11,6 +11,7 @@ library(leaflet) # For interactive 2-D maps
 library(lubridate) # For working with dates
 library(rayshader) # For 3-D plots and movies
 library(rsi) # Built on top of the {rstac} package; simplifies workflow
+library(rstac) # Provides access to various STAC (spatial-temporal asset catalogue) APIs
 
 # =======================
 #  PREP WORK
