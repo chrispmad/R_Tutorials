@@ -46,6 +46,7 @@ leaflet() |>
 
 # =======================
 #  DOWNLOADING SATELLITE IMAGES WITH {rsi}
+#  i.e. a relatively simple way to download satellite images.
 # =======================
 
 # 1. LANDSAT
@@ -93,40 +94,18 @@ terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
 # images by specifying 'composite_function = NULL'. This will
 # allow us to download ALL available satellite images for
 # our area in the chosen timespan. This results in a pretty large download!
-i_want_to_wait = FALSE
-
-if(i_want_to_wait){
-  if(file.exists('data/vic_sentinel2_sep_1_r.tif')){
-    vic_early = terra::rast('data/vic_sentinel2_sep_12_r.tif')
-    vic_late = terra::rast('data/vic_sentinel2_sep_1_r.tif')
-  } else {
-    vic_sentinel2_sep = get_sentinel2_imagery(
-      vic,
-      start_date = "2023-09-01",
-      end_date = "2023-10-31",
-      output_filename = tempfile(fileext = ".tif"),
-      composite_function = NULL
-    )
-    for(i in 1:length(vic_sentinel2_sep)){
-      r = terra::rast(vic_sentinel2_sep[i])
-      terra::writeRaster(r, paste0('data/vic_sentinel2_sep_',i,'_r.tif'))
-    }
-    vic_early = terra::rast(vic_sentinel2_sep[12])
-    vic_late = terra::rast(vic_sentinel2_sep[1])
-  }
-
-  vic_sentinel2_sep_r
-}
 
 # =======================
 #   SELECTING DATES + CUSTOM QUERIES IN {rstac} PACKAGE
+#   More complicated, multistep process.
 # =======================
 
 ### Selecting Dates
 
 # We can see HOW MANY images are available in a given time period, before downloading them.
 # This is probably a good idea if we want to test a timeframe to then choose
-# an early and a late image for contrasting.
+# an early and a late image for contrasting. To do this, we can use the
+# r package {rstac}
 
 # I'm going to switch our focus to just Langford (to reduce the waiting time)
 # a bit when downloading these satellite images.
@@ -160,6 +139,10 @@ results$features |>
   length()
 # 250 Sentinel2 satellite images for Langford in this time frame!
 
+results |>
+  rstac::items_assets()
+# Here are the different kinds of satellite images included in this collection.
+
 ### Custom Queries
 
 # Even better, we can design our own search query to only return
@@ -189,44 +172,43 @@ results_q$features |>
 # What's the oldest image, and newest image, in this collection?
 # We can use these dates to intelligently inform {rsi} downloads
 # of satellite imagery.
-oldest_date = results_q$features[[length(results_q$features)]]$id
-recent_date = results_q$features[[1]]$id
+
 
 # We'll use the oldest date and most recent date like this:
-# past -----------------------------------------------> present
-# X X X [oldest_date ==X====X====X==X=X==> recent_date] X X
+# past --X-----X-X-------X-------X--X---------X-----X--------X--> present
+#      [  (oldest_date)  ] ------------------ [  (recent_date)  ]
+
+oldest_date = results_q$features[[length(results_q$features)]]$id
 
 oldest_date = stringr::str_remove(oldest_date, paste0('.*',tile_name,'_')) |>
   stringr::str_remove('T.*') |>
   lubridate::ymd()
 
+oldest_date
+
+recent_date = results_q$features[[1]]$id
+
 recent_date = stringr::str_remove(recent_date, paste0('.*',tile_name,'_')) |>
   stringr::str_remove('T.*') |>
   lubridate::ymd()
 
+recent_date
+
+# We could plug these dates in to download sentinel2 Satellite imagery
+# using the {rsi} 'get_sentinel2_imagery()' function.
 
 # =======================
 #  ELEVATION
 # =======================
 
-# And finally, we can get a DEM of the area.
-# Many options for this, we can use {rsi} to
-# do it, or {elevatr}
-vic_dem = rsi::get_dem(
-  vic
-)
+# We can get a DEM of the area.
+# Many options for this, we can use {rsi} to do it, or {elevatr} package
+
+vic_dem = rsi::get_dem(vic)
 
 vic_dem = terra::rast(vic_dem)
 
 plot(vic_dem)
-
-# vic_dem = get_dem(
-#   vic,
-#   output_filename = tempfile(fileext = ".tif"),
-# )
-# # Note: we could also use the {elevatr} package to get elevation data!
-#
-# vic_dem_r = terra::rast(vic_dem)
 
 # Let's take a look at the landsat and the sentinel2 images
 par(mfrow = c(1, 3))
@@ -240,7 +222,7 @@ terra::plot(vic_dem)
 
 # We can make a custom CQL query to narrow down
 # the kind of satellite images that we download,
-# e.g. if we only wish to retain sentinel-2 images with cloud cover
+# e.g. if we only wish to retain landsat or sentinel-2 images with cloud cover
 # of 25% or less, we could use the following query.
 landsat_25cc_qf <- function(bbox, start_date, end_date, limit,
                               asset_names = rsi::landsat_band_mapping$planetary_computer_v1,
@@ -293,6 +275,7 @@ old_langford_ndvi = calculate_indices(
 )
 
 olndvi = terra::rast(old_langford_ndvi)
+
 plot(olndvi)
 
 # Download Landsat satellite imagery for Langford area for the
@@ -335,14 +318,18 @@ terra::plot(dif)
 hist(dif, main = "", xlab = "NDVI")
 
 #What's the average change in NDVI?
+# Not sure if this is statistically recommended...?
 mean(terra::values(dif),na.rm=T)
 
 # Let's make a ggplot from the raster, it would look nicer!
 dif_df = terra::as.data.frame(dif, xy = T)
 
+library(ggplot2)
+
 ggplot(dif_df) +
   geom_raster(aes(x,y, fill = NDVI)) +
-  scale_fill_gradient2(high = 'darkgreen')
+  scale_fill_gradient2(high = 'darkgreen') +
+  theme(panel.background = element_rect(fill = 'white'))
 
 # =======================
 #  3D PLOTS WITH VISUAL OVERLAY
@@ -367,12 +354,14 @@ vic_dem_r_s = terra::aggregate(vic_dem, fact = 2)
 
 vic_el = rayshader::raster_to_matrix(vic_dem_r_s)
 
+# Here's a 2D version of the map.
 vic_el |>
   sphere_shade(texture = "desert") |>
   add_water(detect_water(vic_el), color = "desert") |>
   add_shadow(ray_shade(vic_el), 0.5) |>
   plot_map()
 
+# And here's a 3D version, with the PNG added as an overlay!
 vic_el |>
   sphere_shade(texture = "desert") |>
   add_overlay(my_overlay) |>
@@ -380,6 +369,8 @@ vic_el |>
   add_shadow(ray_shade(vic_el, zscale = 3), 0.5) |>
   add_shadow(ambient_shade(vic_el), 0) |>
   plot_3d(vic_el, zscale = 10, fov = 0, theta = 30, zoom = 0.75, phi = 35, windowsize = c(1000, 800))
+
+# If you'd like, you can make a little GIF video.
 
 # filename_movie = tempfile()
 
@@ -402,14 +393,21 @@ ggplot(dif_df) +
   theme(legend.position = 'none')
 dev.off()
 
-langlord_overlay = png::readPNG('output/overlay_langford.png')
+langford_overlay = png::readPNG('output/overlay_langford.png')
+
+magick::image_read('output/overlay_langford.png')
 
 lang_el = rayshader::raster_to_matrix(lang_el)
 
 lang_el |>
-  sphere_shade(texture = "desert") |>
-  add_overlay(langlord_overlay) |>
+  sphere_shade(texture = "imhof1") |>
+  add_overlay(langford_overlay) |>
   add_water(detect_water(lang_el), color = "desert") |>
   add_shadow(ray_shade(lang_el, zscale = 3), 0.5) |>
   add_shadow(ambient_shade(lang_el), 0) |>
-  plot_3d(vic_el, zscale = 10, fov = 0, theta = 30, zoom = 0.75, phi = 35, windowsize = c(1000, 800))
+  plot_3d(lang_el, zscale = 10,
+          theta = 30, zoom = 0.75, phi = 35,
+          # fov = 67,
+          windowsize = c(1000, 800))
+
+render_snapshot(filename = 'output/render_test.png')
