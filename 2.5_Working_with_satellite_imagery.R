@@ -46,6 +46,19 @@ leaflet() |>
   )
 
 # =======================
+#  ELEVATION
+# =======================
+
+# We can get a DEM of the area.
+# Many options for this, we can use {rsi} to do it, or {elevatr} package
+
+vic_dem = rsi::get_dem(vic)
+
+vic_dem = terra::rast(vic_dem)
+
+plot(vic_dem)
+
+# =======================
 #  DOWNLOADING SATELLITE IMAGES WITH {rsi}
 #  i.e. a relatively simple way to download satellite images.
 # =======================
@@ -91,10 +104,21 @@ terra::writeRaster(vic_sentinel2_r, 'data/vic_sentinel2_r.tif')
 
 terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
 
+plot(vic_sentinel2_r)
+
 # We can also choose to NOT take the median of all available
 # images by specifying 'composite_function = NULL'. This will
 # allow us to download ALL available satellite images for
 # our area in the chosen timespan. This results in a pretty large download!
+
+
+# Let's take a look at the landsat and the sentinel2 images
+par(mfrow = c(1, 3))
+terra::plotRGB(vic_landsat_r, r = 4, g = 3, b = 2, stretch = "lin")
+terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
+terra::plot(vic_dem)
+
+par(mfrow = c(1,1))
 
 # =======================
 #   SELECTING DATES + CUSTOM QUERIES IN {rstac} PACKAGE
@@ -147,7 +171,7 @@ results |>
 ### Custom Queries
 
 # Even better, we can design our own search query to only return
-# images if they meet certain criteria, e.g., less than 10% cloud cover.
+# images if they meet certain criteria, e.g., less than 25% cloud cover.
 
 s_obj = rstac::stac(attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source"))
 collection_name = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "collection_name")
@@ -159,7 +183,7 @@ results_q = s_obj |> # The stac source
   rstac::ext_filter(
     # These are our filtering conditions
     collection == {{collection_name}} &&
-    `eo:cloud_cover` <= 10  &&
+    `eo:cloud_cover` <= 25  &&
     `s2:mgrs_tile` == {{tile_name}}  &&
     anyinteracts(datetime, interval("2018-09-01", "2024-03-01"))
     ) |>
@@ -173,7 +197,6 @@ results_q$features |>
 # What's the oldest image, and newest image, in this collection?
 # We can use these dates to intelligently inform {rsi} downloads
 # of satellite imagery.
-
 
 # We'll use the oldest date and most recent date like this:
 # past --X-----X-X-------X-------X--X---------X-----X--------X--> present
@@ -197,25 +220,6 @@ recent_date
 
 # We could plug these dates in to download sentinel2 Satellite imagery
 # using the {rsi} 'get_sentinel2_imagery()' function.
-
-# =======================
-#  ELEVATION
-# =======================
-
-# We can get a DEM of the area.
-# Many options for this, we can use {rsi} to do it, or {elevatr} package
-
-vic_dem = rsi::get_dem(vic)
-
-vic_dem = terra::rast(vic_dem)
-
-plot(vic_dem)
-
-# Let's take a look at the landsat and the sentinel2 images
-par(mfrow = c(1, 3))
-terra::plotRGB(vic_landsat_r, r = 4, g = 3, b = 2, stretch = "lin")
-terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
-terra::plot(vic_dem)
 
 # =======================
 #  Custom query for {rsi} package
