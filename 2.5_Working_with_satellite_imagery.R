@@ -171,6 +171,8 @@ par(mfrow = c(1,1))
 # a bit when downloading these satellite images.
 
 # We start off the query by identifying a STAC source.
+rsi::sentinel2_band_mapping$planetary_computer_v1
+
 planetarycomp_source = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source")
 
 results = rstac::stac(planetarycomp_source) |>  # The stac source
@@ -207,7 +209,7 @@ results_q = s_obj |> # The stac source
   rstac::ext_filter(
     # These are our filtering conditions
     collection == {{collection_name}} &&
-    `eo:cloud_cover` <= 25  &&
+    `eo:cloud_cover` <= 10  &&
     `s2:mgrs_tile` == {{tile_name}}  &&
     anyinteracts(datetime, interval("2018-09-01", "2024-03-01"))
     ) |>
@@ -297,7 +299,7 @@ if(file.exists('data/old_lang_ls_r.tif')){
 
 terra::plotRGB(old_lang_ls_r, r = 4, g = 3, b = 2, stretch = "lin")
 
-old_langford_ndvi = calculate_indices(
+old_langford_ndvi = rsi::calculate_indices(
   old_lang_ls_r,
   asi[asi$short_name == 'NDVI',],
   output_filename = tempfile(fileext = '.tif')
@@ -346,7 +348,7 @@ par(mfrow = c(1,1))
 terra::plot(dif)
 hist(dif, main = "", xlab = "NDVI")
 
-#What's the average change in NDVI?
+# What's the average change in NDVI?
 # Not sure if this is statistically recommended...?
 mean(terra::values(dif),na.rm=T)
 
@@ -369,13 +371,15 @@ ggplot(dif_df) +
 
 # 1. Victoria
 
-#create bing png to overlay
+#create png to overlay
 png("output/overlay_vic_elev.png")
 
 terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
 
 dev.off()
+
 magick::image_read('output/overlay_vic_elev.png')
+
 my_overlay = png::readPNG('output/overlay_vic_elev.png')
 
 # Reduce raster complexity
@@ -500,9 +504,9 @@ bog_2018 = raster_cube(col, v, mask = S2.mask) %>%
 # We could plot this raster_cube directly by piping it into a 'plot()' function call,
 # or we can save the accessed data as a .tif file, which allows for further analyses.
 if(!file.exists('data/bog_from_datacube_2018-06-01.tif')){
-  write_tif(bog_2018,
-            dir = 'data',
-            prefix = 'bog_from_datacube_')
+  gdalcubes::write_tif(bog_2018,
+                       dir = 'data',
+                       prefix = 'bog_from_datacube_')
 }
 
 bog_old = terra::rast('data/bog_from_datacube_2018-06-01.tif')
