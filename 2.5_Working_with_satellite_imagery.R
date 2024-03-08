@@ -12,6 +12,7 @@ library(lubridate) # For working with dates
 library(rayshader) # For 3-D plots and movies
 library(rsi) # Built on top of the {rstac} package; simplifies workflow
 library(rstac) # Provides access to various STAC (spatial-temporal asset catalogue) APIs
+library(gdalcubes) # An alternative to {rsi}; different workflow, has progress bar and band selection!
 
 # =======================
 #  PREP WORK
@@ -45,11 +46,34 @@ leaflet() |>
     data = vic_bbox
   )
 
+# Do the same thing for Langford and for Bogota, Colombia.
+lang = st_as_sf(
+  data.frame(lat = 48.45,
+             lng = -123.5047),
+  coords = c("lng","lat"),
+  crs = 4326) |>
+  st_buffer(dist = 4500) |>
+  st_bbox() |>
+  st_as_sfc()
+
+leaflet() |> addTiles() |> addPolygons(data = lang)
+
+bog = st_as_sf(
+  data.frame(lat = c(4.83920, 4.470315),
+             lng = c(-74.25, -73.95)),
+  coords = c('lng','lat'),
+  crs = 4326
+) |>
+  st_bbox() |>
+  st_as_sfc() |>
+  st_transform(crs = 21817) |>
+  st_buffer(dist = 20000)
+
 # =======================
 #  ELEVATION
 # =======================
 
-# We can get a DEM of the area.
+# We can download a digital elevation model (DEM) of the area.
 # Many options for this, we can use {rsi} to do it, or {elevatr} package
 
 vic_dem = rsi::get_dem(vic)
@@ -57,6 +81,16 @@ vic_dem = rsi::get_dem(vic)
 vic_dem = terra::rast(vic_dem)
 
 plot(vic_dem)
+
+bog_dem = elevatr::get_elev_raster(
+  bog,
+  z = 10
+)
+
+plot(bog_dem)
+plot(bog, add = T)
+bog_dem_c = terra::crop(rast(bog_dem), vect(bog))
+plot(bog_dem_c)
 
 # =======================
 #  DOWNLOADING SATELLITE IMAGES WITH {rsi}
@@ -104,13 +138,13 @@ terra::writeRaster(vic_sentinel2_r, 'data/vic_sentinel2_r.tif')
 
 terra::plotRGB(vic_sentinel2_r, r = 4, g = 3, b = 2, stretch = "lin")
 
+# Let's look at all the different bands ('assets') included in this raster file.
 plot(vic_sentinel2_r)
 
 # We can also choose to NOT take the median of all available
 # images by specifying 'composite_function = NULL'. This will
 # allow us to download ALL available satellite images for
 # our area in the chosen timespan. This results in a pretty large download!
-
 
 # Let's take a look at the landsat and the sentinel2 images
 par(mfrow = c(1, 3))
@@ -121,8 +155,9 @@ terra::plot(vic_dem)
 par(mfrow = c(1,1))
 
 # =======================
-#   SELECTING DATES + CUSTOM QUERIES IN {rstac} PACKAGE
-#   More complicated, multistep process.
+# Going back to the source: querying the STAC (spatial-temporal asset catalogue)
+# by selecting dates with the {rstac} package
+# (a more complicated, multi-step process)
 # =======================
 
 ### Selecting Dates
@@ -134,17 +169,6 @@ par(mfrow = c(1,1))
 
 # I'm going to switch our focus to just Langford (to reduce the waiting time)
 # a bit when downloading these satellite images.
-
-lang = st_as_sf(
-  data.frame(lat = 48.45,
-             lng = -123.5047),
-  coords = c("lng","lat"),
-  crs = 4326) |>
-  st_buffer(dist = 4500) |>
-  st_bbox() |>
-  st_as_sfc()
-
-leaflet() |> addTiles() |> addPolygons(data = lang)
 
 # We start off the query by identifying a STAC source.
 planetarycomp_source = attr(rsi::sentinel2_band_mapping$planetary_computer_v1, "stac_source")
@@ -416,3 +440,100 @@ lang_el |>
           windowsize = c(1000, 800))
 
 render_snapshot(filename = 'output/render_test.png')
+
+# =======================
+#  gdalcubes workflow
+# (a more complicated workflow with some advantages)
+# =======================
+
+bog_bbox = st_bbox(st_transform(bog,4326))
+bog_bbox_m = st_bbox(bog,4326)
+
+# Pick the catalogue that we'll query.
+s = stac("https://earth-search.aws.element84.com/v0")
+
+# Query for Sentinel2 imagery
+items <- s %>%
+  stac_search(collections = "sentinel-s2-l2a-cogs",
+              bbox = c(bog_bbox$xmin,bog_bbox$ymin,
+                       bog_bbox$xmax,bog_bbox$ymax), # Bogota
+              datetime = "2018-06-01/2018-12-31") %>%
+  post_request()
+
+items
+
+# Select certain bands to download. Can speed up the download significantly!
+assets = c("B01","B02","B03","B04","B08","SCL")
+
+# Connect the stac query with our filter to create an 'image_collection'
+col = stac_image_collection(items$features, asset_names = assets,
+                            property_filter = function(x) {x[["eo:cloud_cover"]] < 20})
+
+col
+# 8 images, each with 6 bands.
+
+# Construct the 'cube view' - not sure why we need to do this again, after having made
+# the image collection.
+v = cube_view(srs = "EPSG:21817", # meter-based CRS that is appropriate for Bogota
+              extent = list(t0 = "2018-06-01",
+                            t1 = "2018-12-31",
+                            left = bog_bbox_m$xmin,
+                            right = bog_bbox_m$xmax,
+                            top = bog_bbox_m$ymax,
+                            bottom = bog_bbox_m$ymin
+              ),
+              dx = 20, # Width of pixels in meters
+              dy = 20, # Height of pixels in meters
+              dt = "P1D", # "Size of pixels in 'time-direction'. Maybe don't change this one!
+              aggregation = "median",
+              resampling = "average")
+
+S2.mask = image_mask("SCL", values=c(3,8,9)) # clouds and cloud shadows
+
+gdalcubes_options(parralel = 4)
+
+bog_2018 = raster_cube(col, v, mask = S2.mask) %>%
+  select_bands(c("B02","B03","B04","B08")) %>% #select the bands to download.
+  reduce_time(c("median(B02)", "median(B03)", "median(B04)", "median(B08)")) #Choose
+# how to combine images from across a time series.
+
+# We could plot this raster_cube directly by piping it into a 'plot()' function call,
+# or we can save the accessed data as a .tif file, which allows for further analyses.
+if(!file.exists('data/bog_from_datacube_2018-06-01.tif')){
+  write_tif(bog_2018,
+            dir = 'data',
+            prefix = 'bog_from_datacube_')
+}
+
+bog_old = terra::rast('data/bog_from_datacube_2018-06-01.tif')
+
+terra::plotRGB(bog_old, r = 3, g = 2, b = 1, stretch = 'lin')
+
+# Use the near infrared band (B08) and the red band (B04) to calculate
+# normalized difference vegetation index (NDVI)
+bog_ndvi = ((bog_old$B08_median - bog_old$B04_median) / (bog_old$B08_median + bog_old$B04_median))
+
+terra::plot(bog_ndvi)
+
+png("output/overlay_bogota.png", height = 560, width = 510)
+terra::plotRGB(bog_old, r = 3, g = 2, b = 1, stretch = "lin")
+dev.off()
+
+bogota_overlay = png::readPNG("output/overlay_bogota.png")
+
+magick::image_read("output/overlay_bogota.png")
+
+bog_dem_mini = terra::aggregate(bog_dem_c, fact = 3)
+
+bog_el = rayshader::raster_to_matrix(bog_dem_mini)
+
+bog_el
+
+bog_el |>
+  sphere_shade(texture = "imhof1") %>%
+  add_overlay(bogota_overlay) |>
+  add_shadow(ray_shade(bog_el, zscale = 3), 0.5) %>%
+  add_shadow(ambient_shade(bog_el), 0) %>%
+  plot_3d(bog_el, zscale = 25, fov = 0, theta = 30, zoom = 0.75, phi = 35,
+          windowsize = c(1000, 800))
+
