@@ -8,3 +8,4 @@ data/**
 kml*
 *.kml
 *.pptx
+download_tests/**
