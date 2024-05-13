@@ -1,22 +1,17 @@
-# This script is a little exploration of what Cindy wants for the 'dat' table.
-
-# dat = vroom::vroom('data/cindy_test_data.csv') |>
-#   dplyr::ungroup() |>
-#   dplyr::select(Date = End_date, Longitude_DD, Species, plant_id = Animal_ID,
-#                 Station_ID,
-#                 Age, Longitude_DD, Latitude_DD, occasion)
+# Title: A list in the wild
 #
-# # Obfuscate species
-# dat = dat |>
-#   dplyr::mutate(Species = ifelse(Species != "NULL", sample(c("Pumpkin","Cucumber","Zucchini","Squash"), size = nrow(dat), replace = T), Species))
+# Date: 2024-05-10
 #
-# dat$occasion = as.numeric(stringr::str_remove_all(dat$occasion,'TRUE,'))
+# Author(s): Chris Madsen (chris.madsen@gov.bc.ca), Bevan Ernst ()
 #
-# write.csv(dat, 'data/cindy_dat_obsc.csv', row.names = F)
+# Description: This script is a little exploration of some real work
+# that Cindy Hurtado was doing. We've taken her original dataset and changed
+# some of the more sensitive info.
 
 library(tidyverse)
 library(vroom)
 library(plotly)
+library(sf)
 
 # Cindy's data wasn't originally split up into 11 chunks, but let's see
 # how we can greatly reduce the amount of code we need to write by using lists.
@@ -36,10 +31,21 @@ dlist
 dlist |>
   purrr::map( ~ read.csv(.x))
 
+# Note that there are two main ways map functions can be written:
+# 1. With a tilde (~) and a . in front of the variables, e.g. .x
+# 2. with either function(x) or \(x) shortcut method,
+#    in which variables do not have a . prefix
+dlist |>
+  purrr::map(function(x) read.csv(x))
+
+dlist |>
+  purrr::map(\(x) read.csv(x))
+
+
 # Cool! But each element of the list is a separate table... let's stack these
 # tables together.
 dat = dlist |>
-  purrr::map( ~ read.csv(.x)) |>
+  purrr::map(\(x) read.csv(x)) |>
   dplyr::bind_rows() |>
   # I like to work with a particular kind of table called a 'tibble'
   as_tibble()
@@ -91,19 +97,19 @@ dat |>
 1:5
 
 output = 1:5 |>
-  map( ~ {
+  map(\(x) {
     # We put code inside the curly braces that we want to run once for each element
     # that we feed in. In this case, once for 1, once for 2, once for 3, etc.
 
-    # We refer to the element with ".x". If we are passing in 2 elements (to a map2()), we
-    # refer to the second element with ".y". I personally rarely use map2().
+    # We refer to the element with "x". If we are passing in 2 elements (to a map2()), we
+    # refer to the second element with "y". I personally rarely use map2().
 
     # map() statements return a list.
-    print(paste0(".x is ",.x)) # Print statement executed when we run the function.
-    .x ** 2 # element to the power of 2
+    print(paste0("x is ",x)) # Print statement executed when we run the function.
+    x ** 2 # element to the power of 2
 
     # The last thing we put in the map() statement is what gets 'exported'.
-    # In this case, the .x ** 2
+    # In this case, the x ** 2
   })
 
 output
@@ -122,14 +128,26 @@ unlist(output)
 
 # Generating some fake data... 50 tables of data
 list_of_tbls = 1:50 |>
+  # Here I use the tilde + .x notation, just for example.
   map( ~ {
     tibble(tbl_id = .x,
-               categ = sample(mpg$manufacturer, size = 100, replace = T),
-               values = runif(n = 100, min = 30, max = 50) + .x ** (9/8) + runif(n = 100, min = -0.1, max = 0.1)
-               )
+           categ = sample(mpg$manufacturer, size = 100, replace = T),
+           values = runif(n = 100, min = 30, max = 50) + .x ** (9/8) + runif(n = 100, min = -0.1, max = 0.1)
+    ) |>
+      # Bump up the values of chevrolet and bump down the mercury values
+      dplyr::mutate(values = case_when(
+        # First case: category is 'chevrolet'; bump up values.
+        categ == 'chevrolet' ~ values*1.5,
+        # Second case: category is 'mercury'; bump down values.
+        categ == 'mercury' ~ values*0.75,
+        # Third case: category is something else; keep values unchanged
+        T ~ values
+      ))
   })
 
 list_of_tbls[[1]]
+
+# Example of more complicated analysis that can be implemented in a short map() call:
 
 sum_tbl = list_of_tbls |>
   map( ~ {
@@ -138,17 +156,43 @@ sum_tbl = list_of_tbls |>
       dplyr::filter(categ != 'hyundai') |>
       # Summarise a numeric variable for each combination of grouping variables...
       dplyr::group_by(tbl_id, categ) |>
-      dplyr::summarise(mean_val = mean(values), .groups = 'drop')
+      dplyr::summarise(mean_val = mean(values),
+                       sd_val = sd(values),
+                       .groups = 'drop')
   }) |>
   # Combine the list of outputs into a single table.
   dplyr::bind_rows()
 
+# Note: we could make our work easier to read and more flexible in terms of
+# applying our code in different ways if we were to first define functions
+# that do the stuff inside that map() call, and then apply them in succession.
+# E.G.:
+
+# Define some functions:
+clean_data = function(dat_list){
+  map(dat_list, \(x) x |> dplyr::filter(categ != 'hyundai'))
+}
+
+summ_data = function(dat_list){
+  map(dat_list, \(x) x |> dplyr::group_by(tbl_id, categ) |>
+        dplyr::summarise(mean_val = mean(values),
+                         sd_val = sd(values),
+                         .groups = 'drop'))
+}
+
+list_of_tbls |>
+  clean_data() |>
+  summ_data() |>
+  dplyr::bind_rows()
+
+# Visualize
 sum_tbl |>
   ggplot(aes(x = tbl_id, y = mean_val, col = categ)) +
+  geom_ribbon(aes(ymin = mean_val-sd_val,
+                  ymax = mean_val+sd_val,
+              fill = categ), alpha = 0.5) +
   geom_point() +
   geom_path()
-
-
 
 
 # Back to Cindy's data! #
@@ -167,7 +211,8 @@ dat |>
   dplyr::mutate(across(-plant_id, \(x) dplyr::case_when(
     is.na(x) ~ 0,
     x == 'Cucumber' ~ 1,
-    T ~ 0)))
+    T ~ 0))
+  )
 
 # But this 'matrix' needs to also have rows for all plant_IDs and columns for all stations,
 # not just for those plant ID / station combinations that were present in that occasion.
@@ -184,19 +229,15 @@ matrix_frame = dat |>
 
 # Our mission:
 
-# For each occasion (1 to 11), make a table showing 1s and 0s by unique plant ID as rows
-# and stations as columns. Also, join on the remaining plant IDs and stations
+# For each occasion (1 to 11), make a table showing 1s and 0s for presence/absence of
+# cucumbers, with unique plant ID as rows and stations as columns.
+# Also, join on the remaining plant IDs and stations
 # that were not initially present in each occasion's observations.
-tbls_by_occasion_list = 1:11 |>
-  map( ~ {
 
-    # Let's us know which iteration the map statement is at...
-    print(.x)
-
-    dat_for_occ = dat |>
-      dplyr::filter(occasion == .x) |>
-      dplyr::ungroup() |>
-      sf::st_drop_geometry() |>
+# Define some functions:
+make_wide_cucumb_tbl = function(dat){
+  map(dat, \(x) {
+    x |>
       dplyr::filter(!duplicated(plant_id)) |>
       dplyr::filter(!is.na(plant_id)) |>
       dplyr::select(plant_id, Station_ID, Species) |>
@@ -205,28 +246,44 @@ tbls_by_occasion_list = 1:11 |>
         is.na(x) ~ 0,
         x == 'Cucumber' ~ 1,
         T ~ 0)))
-
-    # Let's make a list of stations that are present in this results table.
-    # We can then find which stations are MISSING from this list and go about
-    # adding those to our results table for the occasion we are processing.
-    stations_already_in_this_occasion = names(dat_for_occ)[-1]
-
-    # Here are the rows and columns to add to our table...
-    tbl_to_join = matrix_frame |>
-      dplyr::select(-all_of(stations_already_in_this_occasion)) |>
-      dplyr::mutate(across(-plant_id, \(x) x = 0))
-
-    # This last thing in the map statement is what gets 'exported' to our results list
-    dat_for_occ |>
-      # Add on the station name columns from our 'tbl_to_join'. These are
-      # added on the right side of our original table. The left_join uses
-      # the plant IDs to join the two tables
-      dplyr::left_join(tbl_to_join, by = join_by(plant_id)) |>
-      # Add on the plant IDs - these are added on the bottom of our table.
-      dplyr::bind_rows(tbl_to_join[!tbl_to_join$plant_id %in% dat_for_occ$plant_id,]) |>
-      # Replace any NA values in the new columns with 0.
-      dplyr::mutate(across(-plant_id, \(x) ifelse(is.na(x), 0, x)))
   })
+}
+
+merge_with_matrix = function(dat, matrix_frame){
+  map(dat, ~ {
+
+      # Let's make a list of stations that are present in this results table.
+  # We can then find which stations are MISSING from this list and go about
+  # adding those to our results table for the occasion we are processing.
+  stations_already_in_this_occasion = names(.x)[-1]
+
+  # Here are the rows and columns to add to our table...
+  tbl_to_join = matrix_frame |>
+    dplyr::select(-all_of(stations_already_in_this_occasion)) |>
+    dplyr::mutate(across(-plant_id, \(x) x = 0))
+
+  # This last thing in the map statement is what gets 'exported' to our results list
+  .x |>
+    # Add on the station name columns from our 'tbl_to_join'. These are
+    # added on the right side of our original table. The left_join uses
+    # the plant IDs to join the two tables
+    dplyr::left_join(tbl_to_join, by = join_by(plant_id)) |>
+    # Add on the plant IDs - these are added on the bottom of our table.
+    dplyr::bind_rows(tbl_to_join[!tbl_to_join$plant_id %in% .x$plant_id,]) |>
+    # Replace any NA values in the new columns with 0.
+    dplyr::mutate(across(-plant_id, \(x) ifelse(is.na(x), 0, x)))
+  })
+}
+
+# Split data by group into a list of length 11
+dat_l = dat |>
+  dplyr::group_by(occasion) |>
+  dplyr::group_split()
+
+# Apply our two map functions that we defined above
+tbls_by_occasion_list = dat_l |>
+  make_wide_cucumb_tbl() |>
+  merge_with_matrix(matrix_frame)
 
 length(tbls_by_occasion_list)
 # 11 tables! That checks out.
@@ -310,6 +367,7 @@ array_3d = array(data = dat_long$value,
                  dimnames = dimension_names)
 
 # We can access certain slices of the array using a 3-fold selection like so:
+# array_3d[plant_id, station_id, occasion_id]
 
 # 1. Entire table for occasion 1...
 array_3d[,,'occ_1'] |>
@@ -368,3 +426,46 @@ for(i in 1:number_of_occasions){
 }
 
 p
+
+# # We have coordinates for stations in Cindy's data too!
+# # Let's do some spatial work with lists, to split up spatial operations
+# # into smaller chunks.
+# station_dat = all_dat |>
+#   tidyr::pivot_longer(-c(occasion, plant_id), names_to = 'station_id') |>
+#   dplyr::mutate(plant_id = paste0('p_',plant_id)) |>
+#   tidyr::pivot_wider(names_from = plant_id, values_from = value) |>
+#   dplyr::left_join(
+#     dat |>
+#       dplyr::select(station_id = Station_ID, lat = Latitude_DD, lon = Longitude_DD) |>
+#       dplyr::mutate(station_id = paste0('st_',station_id)) |>
+#       dplyr::distinct()
+#   )
+#
+# station_sf = sf::st_as_sf(station_dat, coords = c('lon','lat'), crs = 4326)
+#
+# # Bring in natural resource regions
+# regs = bcmaps::nr_regions() |>
+#   # Change the coordinate reference system to be the same as Cindy's data: lat/lon WGS 84
+#   sf::st_transform(crs = 4326) |>
+#   dplyr::select(reg_name = REGION_NAME) |>
+#   dplyr::mutate(reg_name = stringr::str_remove(reg_name, ' Natural.*'))
+#
+# dat_by_regs = station_sf |>
+#   sf::st_join(regs)
+#
+# dat_by_regs_l = dat_by_regs |>
+#   dplyr::group_by(reg_name) |>
+#   dplyr::group_split()
+#
+# library(ggiraph)
+#
+# g = ggplot() +
+#   geom_sf_interactive(data = regs, aes(tooltip = reg_name, data_id = reg_name)) +
+#   geom_sf(data = dat_by_regs, aes(col = reg_name)) +
+#   coord_sf(xlim = st_bbox(dat_by_regs)[c(1,3)],
+#            ylim = st_bbox(dat_by_regs)[c(2,4)])
+#
+# girafe(ggobj = g)
+#
+# # Let's do something that might be quite 'costly' if we attempted to do it for the
+# # entire province:
