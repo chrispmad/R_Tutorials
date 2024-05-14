@@ -13,6 +13,16 @@ library(vroom)
 library(plotly)
 library(sf)
 
+my_vec = c(1,2,3)
+
+my_tbl = data.frame(a = c(1,2,3),
+           b = c('b','b','b'))
+
+list(
+  my_vec,
+  my_tbl
+)
+
 # Cindy's data wasn't originally split up into 11 chunks, but let's see
 # how we can greatly reduce the amount of code we need to write by using lists.
 
@@ -197,10 +207,12 @@ clean_data = function(dat_list){
 }
 
 summ_data = function(dat_list){
-  map(dat_list, \(x) x |> dplyr::group_by(tbl_id, categ) |>
+  map(dat_list, \(x) x |>
+        dplyr::group_by(tbl_id, categ) |>
         dplyr::summarise(mean_val = mean(values),
                          sd_val = sd(values),
-                         .groups = 'drop'))
+                         .groups = 'drop')
+      )
 }
 
 list_of_tbls |>
@@ -219,7 +231,6 @@ sum_tbl |>
 
 
 # Back to Cindy's data! #
-
 
 # Let's break the problem down a bit: let's check out the 2D table for occasion 1.
 # Note: this isn't a matrix yet, just a table.
