@@ -1,6 +1,6 @@
 # Title: A list in the wild
 #
-# Date: 2024-05-10
+# Date: 2024-05-14
 #
 # Author(s): Chris Madsen (chris.madsen@gov.bc.ca), Bevan Ernst ()
 #
@@ -17,7 +17,7 @@ library(sf)
 # how we can greatly reduce the amount of code we need to write by using lists.
 
 # Path to data files.
-dlist = list.files('data/cindyH',
+dlist = list.files(path = 'data/cindyH',
            # Optionally, we can add in a text pattern for the files.
            # This "regular expression" matches any files that contain
            # 'chunk_', one or more numbers, then '.csv'
@@ -41,14 +41,22 @@ dlist |>
 dlist |>
   purrr::map(\(x) read.csv(x))
 
+# Sidenote: we can do more than just reading in data using a list of
+# filenames. We can also directly affect files on our computer, e.g.
+# copying, moving, renaming, deleting... Be careful with this though,
+# deleting files like this CANNOT BE UNDONE!! Functions start with 'file.'
+# e.g. file.copy()
+# e.g. file.remove()
 
 # Cool! But each element of the list is a separate table... let's stack these
 # tables together.
 dat = dlist |>
+  # Apply read.csv to each element in our list...
   purrr::map(\(x) read.csv(x)) |>
+  # Join list elements together (vertically) into one table
   dplyr::bind_rows() |>
   # I like to work with a particular kind of table called a 'tibble'
-  as_tibble()
+  tidyr::as_tibble()
 
 head(dat)
 
@@ -56,9 +64,9 @@ head(dat)
 unique(dat$occasion)
 #11! Note that the order of these occasions is not correct, though...
 
-# Looks like the 'Age' column has no data! Let's drop it.
 dat |>
   dplyr::filter(!is.na(Age))
+# Looks like the 'Age' column has no data! Let's drop it.
 
 dat = dat |>
   dplyr::select(-Age)
@@ -98,6 +106,7 @@ dat |>
 
 output = 1:5 |>
   map(\(x) {
+    # If the code we want to run is multiple lines, we need curly braces.
     # We put code inside the curly braces that we want to run once for each element
     # that we feed in. In this case, once for 1, once for 2, once for 3, etc.
 
@@ -120,11 +129,13 @@ output
 
 unlist(output)
 
-# Quick aside: why use map() instead of a for loop?
+# Quick aside: why use map() instead of a 'for loop'?
 # 1. Street cred
-# 2. Unlike a for loop, which just receives a vector of integers (e.g. 1:10),
-# you can pass in a list of objects such as tables. For example...
+# 2. Unlike a 'for loop', which just receives a vector of integers (e.g. 1:10),
+# you can pass in a list of more complicated objects such as tables / rasters!
 
+# Why use a 'for loop' instead?
+# 1.
 
 # Generating some fake data... 50 tables of data
 list_of_tbls = 1:50 |>
@@ -426,46 +437,3 @@ for(i in 1:number_of_occasions){
 }
 
 p
-
-# # We have coordinates for stations in Cindy's data too!
-# # Let's do some spatial work with lists, to split up spatial operations
-# # into smaller chunks.
-# station_dat = all_dat |>
-#   tidyr::pivot_longer(-c(occasion, plant_id), names_to = 'station_id') |>
-#   dplyr::mutate(plant_id = paste0('p_',plant_id)) |>
-#   tidyr::pivot_wider(names_from = plant_id, values_from = value) |>
-#   dplyr::left_join(
-#     dat |>
-#       dplyr::select(station_id = Station_ID, lat = Latitude_DD, lon = Longitude_DD) |>
-#       dplyr::mutate(station_id = paste0('st_',station_id)) |>
-#       dplyr::distinct()
-#   )
-#
-# station_sf = sf::st_as_sf(station_dat, coords = c('lon','lat'), crs = 4326)
-#
-# # Bring in natural resource regions
-# regs = bcmaps::nr_regions() |>
-#   # Change the coordinate reference system to be the same as Cindy's data: lat/lon WGS 84
-#   sf::st_transform(crs = 4326) |>
-#   dplyr::select(reg_name = REGION_NAME) |>
-#   dplyr::mutate(reg_name = stringr::str_remove(reg_name, ' Natural.*'))
-#
-# dat_by_regs = station_sf |>
-#   sf::st_join(regs)
-#
-# dat_by_regs_l = dat_by_regs |>
-#   dplyr::group_by(reg_name) |>
-#   dplyr::group_split()
-#
-# library(ggiraph)
-#
-# g = ggplot() +
-#   geom_sf_interactive(data = regs, aes(tooltip = reg_name, data_id = reg_name)) +
-#   geom_sf(data = dat_by_regs, aes(col = reg_name)) +
-#   coord_sf(xlim = st_bbox(dat_by_regs)[c(1,3)],
-#            ylim = st_bbox(dat_by_regs)[c(2,4)])
-#
-# girafe(ggobj = g)
-#
-# # Let's do something that might be quite 'costly' if we attempted to do it for the
-# # entire province:
