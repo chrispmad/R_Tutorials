@@ -133,9 +133,21 @@ unlist(output)
 # 1. Street cred
 # 2. Unlike a 'for loop', which just receives a vector of integers (e.g. 1:10),
 # you can pass in a list of more complicated objects such as tables / rasters!
+# 3. Can make code vastly shorter -> easier to read, edit, and no carpal tunnel syndrome from typing!
 
 # Why use a 'for loop' instead?
-# 1.
+# 1. Potentially easier to debug, as you can just set i = some number and check out
+# what happens in each line of the loop.
+
+# Bevan Ernst (an R WizaRd) is a master map() user; he recommends splitting up spatial tasks
+# into, e.g., a list of regions. Can greatly speed up processes that otherwise attempt to
+# look at the entire province. Also, he taught me about the .progress = TRUE argument.
+
+1:5 |>
+ purrr::map( ~ {
+   # Some code that takes a while... #
+    Sys.sleep(2)
+  }, .progress = T)
 
 # Generating some fake data... 50 tables of data
 list_of_tbls = 1:50 |>
@@ -207,7 +219,6 @@ sum_tbl |>
 
 
 # Back to Cindy's data! #
-
 
 
 # Let's break the problem down a bit: let's check out the 2D table for occasion 1.
