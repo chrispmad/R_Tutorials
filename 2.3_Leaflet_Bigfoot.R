@@ -228,6 +228,7 @@ ggplot() +
 
 # Let's drop any records that are in the ocean.
 bigf_sf = bigf_sf |>
+  sf::st_filter(NA_monolith)
   dplyr::filter(sf::st_intersects(geometry, NA_monolith, sparse = F))
 
 ggplot() +
