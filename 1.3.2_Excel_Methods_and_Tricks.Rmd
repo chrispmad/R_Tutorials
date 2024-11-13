@@ -6,16 +6,199 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 library(readxl) # Chris likes this package for quick-and-dirty reading and writing of excel files.
 library(openxlsx) # Chris likes this package for generating excel documents with multiple sheets and with styling options like column width, background fill colour for cells, etc.
+library(xlsx)
 ```
 
 ## Wrangling Fancy Excel Sheets
 
+### Chris' Notes
+
+We can read in a workbook, including its styling, images, etc., using the 'loadWorkbook()' function.
+
 ```{r}
-my_wb = openxlsx::loadWorkbook("data/messy_excel_doc.xlsx")
+my_wb = openxlsx::loadWorkbook("data_for_github/messy_excel_doc.xlsx")
+```
+
+Let's see what sheets are present in our workbook.
+
+```{r}
+all_sheets = openxlsx::sheets(my_wb)
+all_sheets
+```
+
+I want the information from the sheet 'TOR'. Note that we could use this workflow to identify multiple sheets with info that we want to read into R, then loop through the vector of sheet names using something like lapply() or purrr::map().
+
+```{r}
+desired_sheet = all_sheets[all_sheets == 'TOR']
+
+tor = openxlsx::readWorkbook("data_for_github/messy_excel_doc.xlsx", sheet = desired_sheet) |> 
+  tidyr::as_tibble()
+
+dat = readxl::read_excel('data_for_github/messy_excel_doc.xlsx',
+                 sheet = 'TOR')
+```
+
+If we want to convert cell styles into data that we can manipulate in R, my experience is that we need to use the {xlsx} package (it's a big older), as this one gives us access to the following functions:
+
+- getSheets() - This reads a sheet in along with each cell's styling (e.g. text font, background color fill)
+-
+-
+```{r}
+my_wb_xlsx = xlsx::loadWorkbook('data_for_github/messy_excel_doc.xlsx')
+# my_wb_xlsx = xlsx::loadWorkbook(chosen_sheet_contents)
+tor_w_style = xlsx::getSheets(my_wb_xlsx)[[2]]
+```
+
+What does this 'tor_w_style' object look like? It's an opaque java object. Yuck!
+
+```{r}
+tor_w_style
+```
+
+```{r}
+# In order to get the style of all cells, we must first snag all the rows
+rows  <- xlsx::getRows(tor_w_style)
+# Next, we pull out all the cells from each row.
+cells <- xlsx::getCells(rows)
+
+# Snag styles for all cells.
+styles <- sapply(cells, xlsx::getCellStyle)
+```
+
+What do these styles look like? Let's look at the first list element?
+```{r}
+styles[[1]]
+```
+
+Hmm, still quite opaque!
+
+```{r}
+# This function pulls the fill colour from each cell. We could get other details too.
+cellColor <- function(style)
+{
+  # Snag the fill foreground
+  fg  <- style$getFillForegroundXSSFColor()
+  # Snag the font style - note that we don't export this out of the function,
+  # but we could if we wanted to.
+  font <- style$getFont()
+  # Try to pull out the RGB colour of the fill; if that fails, use 'NULL'
+  rgb <- tryCatch(fg$getRgb(), error = function(e) NULL)
+  # Combine these colours into one vector.
+  rgb <- paste(rgb, collapse = "")
+  # Return this rgb colour to outside of function
+  return(rgb)
+}
+
+# Pull out colours of cells - this takes a minute!
+colours_of_cells = sapply(styles, cellColor)
+```
+
+Let's take a look at some cells in the middle of our sheet.
+
+```{r}
+colours_of_cells[c(1000:1010)]
+```
+
+Cool! As you can see, the cell's row and column IDs are contained in this named vector's names.
+```{r}
+row_cols_of_cells = names(colours_of_cells)
+# Let's pull out the row (from before the period) and the column (after the period)
+row_of_cells = stringr::str_extract(row_cols_of_cells,"^[0-9]+(?=\\.)")
+col_of_cells = stringr::str_extract(row_cols_of_cells,"(?<=\\.)[0-9]+$")
+
+# Let's transform these disparate vectors into a tibble that we can work with.
+cell_details = tidyr::tibble(
+  cell_row = row_of_cells,
+  cell_col = col_of_cells,
+  cell_colour = colours_of_cells
+)
+  
+# Filter out cells that are not grey (i.e. 'adadad').
+cell_details = cell_details |> 
+  dplyr::filter(cell_colour == 'adadad')
+
+# The cell details applicable to the different life stages begin on row 13 of
+# the 'cell_details' object. This row corresponds to the 4th row of our 'dat' object.
+cell_details = cell_details |>
+  dplyr::mutate(cell_row = as.numeric(cell_row),
+                cell_col = as.numeric(cell_col)) |>
+  dplyr::mutate(cell_row = cell_row - 8) |>
+  dplyr::filter(cell_col != 1)
+
+for(i in 1:nrow(cell_details)){
+  cell_row = cell_details[i,]
+  dat[cell_row$cell_row, cell_row$cell_col] = 'TRUE'
+}
+
+dat
+```
+
+```{r maybe_cut_this_long_formatting_section}
+
+## WE COULD DROP THIS, I DON'T WANT TO HOG THE SCRIPT! ##
+
+# Note: the columns are actually the first row.
+first_row_of_data = names(dat)
+names(dat) = paste0("row_",1:ncol(dat))
+new_first_row = dat[0,]
+new_first_row[1,]$row_1 = first_row_of_data[1]
+dat = dplyr::bind_rows(new_first_row,dat)
+
+# Where are the start and end lines for each table of data?
+tbl_starts = which(dat[,1] == 'Species/life stage')
+wb_name_rows = tbl_starts-2
+wb_tbl = tidyr::tibble(row_id = wb_name_rows, tbl_id = 1:length(wb_name_rows))
+
+# Okay, let's join on the table that indicates which rows belong to which tables.
+# Then, filter out blank rows for column "row_1".
+dat = dat |>
+  dplyr::mutate(row_id = dplyr::row_number()) |>
+  dplyr::left_join(wb_tbl) |>
+  dplyr::select(tbl_id, dplyr::everything()) |>
+  tidyr::fill(tbl_id) |>
+  dplyr::filter(!is.na(row_1))
+
+# Next up, let's rename columns
+month_bits = unlist(
+  1:12 |> purrr::map( ~ {
+    paste0(lubridate::month(.x,label=T),"_",1:2)
+  })
+)
+
+names(dat)[2:ncol(dat)] <- c("multicol",
+                month_bits,
+                "row_id")
+
+# Let's split this table by table id, then do some formatting.
+dat_f = dat |>
+  dplyr::group_by(tbl_id) |>
+  dplyr::group_split() |>
+  purrr::map( ~ {
+    # Pull out waterbody name; drop unnecessary label rows
+    wb_name = .x[1,]$multicol
+    dat = .x[-c(1:3),]
+    # Drop the disclaimer row
+    dat = dat[!stringr::str_detect(dat$multicol,"Disclaimer: "),]
+    # Try to pull out different species names, finding rows that DON'T match
+    # a bunch of keywords.
+    column_keywords = unique(dat$multicol)
+    potential_species = column_keywords[!stringr::str_detect(column_keywords,"([pP]assage|[sS]pawning|[rR]earing|[iI]ncubation|Over\\-[wW]intering)+")]
+    
+    dat = dat |>
+      dplyr::mutate(waterbody = wb_name) |>
+      dplyr::mutate(species = ifelse(multicol %in% potential_species,multicol,NA)) |>
+      tidyr::fill(species, .direction = 'down') |>
+      dplyr::filter(!multicol %in% potential_species) |>
+      dplyr::select(tbl_id,waterbody,species,dplyr::everything()) |>
+      dplyr::rename(`Life Stage` = multicol)
+    dat
+  }) |>
+  dplyr::bind_rows()
+
 
 ```
 
